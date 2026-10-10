@@ -113,6 +113,14 @@
     backgroundConfig = bg;
     if (bg && bg.file_exists && bg.web_url) {
       if (noMediaNotice) noMediaNotice.style.display = 'none';
+      if (bgPollingTimer) {
+        clearInterval(bgPollingTimer);
+        bgPollingTimer = null;
+      }
+      // Voorkom onnodig herladen als dezelfde video al speelt
+      if (bgVideo.src && bgVideo.src.includes(bg.web_url) && !bgVideo.paused) {
+        return;
+      }
       bgVideo.src = bg.web_url;
       bgVideo.loop = bg.loop !== false;
       bgVideo.muted = bg.muted !== false;
@@ -131,9 +139,26 @@
         }
       });
     } else {
-      console.warn('Geen achtergrondvideo aanwezig in media/background/');
+      console.warn('Geen achtergrondvideo aanwezig in media/background/. Start periodieke check...');
       if (noMediaNotice) noMediaNotice.style.display = 'block';
+      startBackgroundPolling();
     }
+  }
+
+  let bgPollingTimer = null;
+  function startBackgroundPolling() {
+    if (bgPollingTimer) return;
+    bgPollingTimer = setInterval(() => {
+      fetch('/api/effects' + (token ? '?token=' + encodeURIComponent(token) : ''))
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.background && data.background.file_exists) {
+            console.info('Nieuwe achtergrondvideo ontdekt via polling:', data.background.file);
+            setupBackground(data.background);
+          }
+        })
+        .catch(() => {});
+    }, 4000);
   }
 
   // Effect afspelen
@@ -298,9 +323,9 @@
   function handleServerMessage(data) {
     const type = data.type;
 
-    if (type === 'init') {
-      currentVolume = data.volume !== undefined ? data.volume : 1.0;
-      isMuted = !!data.muted;
+    if (type === 'init' || type === 'background_update') {
+      if (data.volume !== undefined) currentVolume = data.volume;
+      if (data.muted !== undefined) isMuted = !!data.muted;
       setupBackground(data.background);
     } else if (type === 'play_effect') {
       playEffect(data);

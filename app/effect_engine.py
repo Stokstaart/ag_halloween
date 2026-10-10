@@ -72,7 +72,8 @@ class EffectEngine:
         if exists:
             # Relatief pad t.o.v. media_dir voor web serving via /media/...
             rel_to_media = resolved.relative_to(self.media_dir).as_posix()
-            web_url = f"/media/{rel_to_media}"
+            from urllib.parse import quote
+            web_url = f"/media/{quote(rel_to_media, safe='/')}"
             return True, web_url
         return False, None
 
@@ -104,8 +105,25 @@ class EffectEngine:
 
     def get_background(self) -> Dict[str, Any]:
         """Geeft de actuele achtergrondconfiguratie inclusief bestandsstatus."""
+        self.load_configuration()
         file_path = self.background_config.get("file", "")
         exists, web_url = self._check_file_exists(file_path)
+
+        # Automatische fallback: als geconfigureerd bestand ontbreekt,
+        # zoek naar een geldig videobestand in media/background/
+        if not exists:
+            bg_dir = self.media_dir / "background"
+            if bg_dir.is_dir():
+                candidates = [
+                    f for f in sorted(bg_dir.iterdir())
+                    if f.is_file() and f.suffix.lower() in ALLOWED_MEDIA_EXTENSIONS and f.stat().st_size > 0
+                ]
+                if candidates:
+                    chosen = candidates[0]
+                    file_path = f"media/background/{chosen.name}"
+                    exists, web_url = self._check_file_exists(file_path)
+                    logger.info("Achtergrond automatisch gedetecteerd: %s", file_path)
+
         return {
             "file": file_path,
             "web_url": web_url,

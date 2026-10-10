@@ -15,6 +15,7 @@ services:
       - MAX_EFFECT_DURATION_SECONDS=${MAX_EFFECT_DURATION_SECONDS:-30.0}
       - DEBUG=${DEBUG:-false}
     volumes:
+      - ./app:/app/app
       - ./media:/app/media
       - ./config:/app/config
     healthcheck:
