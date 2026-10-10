@@ -234,7 +234,12 @@ class EffectEngine:
         results = []
         if bg_dir.is_dir():
             for f in sorted(bg_dir.iterdir()):
-                if f.is_file() and f.suffix.lower() in ALLOWED_MEDIA_EXTENSIONS and f.stat().st_size > 0:
+                if (f.is_file() and 
+                    f.suffix.lower() in ALLOWED_MEDIA_EXTENSIONS and 
+                    f.stat().st_size > 0 and
+                    not f.name.endswith(".dwsupload") and
+                    not f.name.endswith(".part") and
+                    not f.name.endswith(".tmp")):
                     rel_path = f"media/background/{f.name}"
                     _, web_url = self._check_file_exists(rel_path)
                     name = f.stem.replace("_", " ").replace("-", " ")
