@@ -182,6 +182,10 @@
       }
 
       if (btn) {
+        const metaSpan = btn.querySelector('.effect-meta');
+        if (metaSpan && eff.duration) {
+          metaSpan.textContent = `${(eff.type || 'Fullscreen').toUpperCase()} • ${Math.round(eff.duration)}s`;
+        }
         if (eff.configured) {
           btn.classList.remove('unconfigured');
           const badge = btn.querySelector('.unconfigured-badge');

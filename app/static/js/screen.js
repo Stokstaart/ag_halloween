@@ -32,6 +32,7 @@
   let currentVolume = 1.0;
   let isMuted = false;
   let backgroundConfig = null;
+  let currentOverlapHandler = null;
 
   // Toggle debug HUD
   function updateDebugHud() {
@@ -289,11 +290,43 @@
       returnToBackground();
     });
 
+    // Luister naar video-afspeeltijd voor naadloze overlap-terugkeer
+    if (currentOverlapHandler) {
+      effectVideo.removeEventListener('timeupdate', currentOverlapHandler);
+      currentOverlapHandler = null;
+    }
+
+    let overlapTriggered = false;
+    currentOverlapHandler = () => {
+      if (overlapTriggered) return;
+      if (!currentActiveEffect || currentActiveEffect.effect_id !== effect.effect_id) {
+        if (currentOverlapHandler) {
+          effectVideo.removeEventListener('timeupdate', currentOverlapHandler);
+          currentOverlapHandler = null;
+        }
+        return;
+      }
+      const dur = effectVideo.duration;
+      const cur = effectVideo.currentTime;
+      // Start de vloeiende overgang ~0.75s vóór het einde van de video voor de gewenste overlap
+      if (dur > 1.2 && cur >= (dur - 0.75)) {
+        overlapTriggered = true;
+        console.info(`Overlap punt bereikt (${Math.round(cur * 10) / 10}s / ${Math.round(dur * 10) / 10}s), start vloeiende overgang naar achtergrond.`);
+        if (currentOverlapHandler) {
+          effectVideo.removeEventListener('timeupdate', currentOverlapHandler);
+          currentOverlapHandler = null;
+        }
+        returnToBackground();
+      }
+    };
+    effectVideo.addEventListener('timeupdate', currentOverlapHandler);
+
+    // Fallback veiligheidstimer (mocht timeupdate haperen of video vastlopen)
     const durationMs = (effect.duration || 15) * 1000;
     effectTimeoutTimer = setTimeout(() => {
-      console.info('Effectduur verstreken:', effect.effect_id);
+      console.info('Effectduur verstreken (fallback timer):', effect.effect_id);
       returnToBackground();
-    }, durationMs + 500);
+    }, durationMs + 2000);
 
     updateDebugHud();
   }
@@ -303,6 +336,11 @@
     if (effectTimeoutTimer) {
       clearTimeout(effectTimeoutTimer);
       effectTimeoutTimer = null;
+    }
+
+    if (currentOverlapHandler) {
+      effectVideo.removeEventListener('timeupdate', currentOverlapHandler);
+      currentOverlapHandler = null;
     }
 
     // Herstel achtergrondweergave vóór fade-out effectvideo

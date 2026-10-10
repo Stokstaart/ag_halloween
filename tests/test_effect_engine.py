@@ -162,3 +162,16 @@ def test_background_switching(temp_env):
     assert success is True
     assert "fog_loop.mp4" in bg["file"]
 
+
+def test_effect_duration_reading():
+    """Test dat de engine de werkelijke videoduur afleest van echte effect-bestanden."""
+    engine = EffectEngine()
+    effects = engine.get_effects_list()
+    
+    # ghost_attack.mp4 is 9.0s -> met 0.7s overlap circa 8.3s
+    ghost = next((e for e in effects if e["id"] == "ghost_attack"), None)
+    if ghost and ghost["file_exists"]:
+        assert ghost["duration"] > 7.0 and ghost["duration"] < 9.0
+        assert ghost["raw_duration"] is not None
+        assert abs(ghost["raw_duration"] - 9.0) < 0.5
+

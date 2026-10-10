@@ -411,7 +411,6 @@ async def websocket_endpoint(websocket: WebSocket):
                             "duration": effect_payload["duration"],
                         })
                         # Watchdog om vastlopen van state te voorkomen
-                        import asyncio
                         async def _watchdog(eid: str, delay: float):
                             await asyncio.sleep(delay)
                             if engine.active_effect_id == eid:
@@ -419,7 +418,7 @@ async def websocket_endpoint(websocket: WebSocket):
                                 engine.stop_effect()
                                 await manager.broadcast_to_screens({"type": "stop_effect"})
                                 await manager.broadcast_to_controllers({"type": "effect_stopped", "effect_id": eid})
-                        asyncio.create_task(_watchdog(effect_payload["effect_id"], effect_payload["duration"] + 1.5))
+                        asyncio.create_task(_watchdog(effect_payload["effect_id"], effect_payload["duration"] + 3.5))
                     else:
                         logger.warning("Trigger voor %s geweigerd: %s", effect_id, reason)
                         await manager.send_personal(websocket, {
@@ -450,6 +449,15 @@ async def websocket_endpoint(websocket: WebSocket):
                             "name": effect_payload["name"],
                             "duration": effect_payload["duration"],
                         })
+                        import asyncio
+                        async def _watchdog_random(eid: str, delay: float):
+                            await asyncio.sleep(delay)
+                            if engine.active_effect_id == eid:
+                                logger.warning("Watchdog (random): effect %s duur verstreken, forceren reset.", eid)
+                                engine.stop_effect()
+                                await manager.broadcast_to_screens({"type": "stop_effect"})
+                                await manager.broadcast_to_controllers({"type": "effect_stopped", "effect_id": eid})
+                        asyncio.create_task(_watchdog_random(effect_payload["effect_id"], effect_payload["duration"] + 3.5))
                     else:
                         await manager.send_personal(websocket, {
                             "type": "trigger_ack",

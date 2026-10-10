@@ -19,7 +19,7 @@ AUTH_TOKEN = os.getenv("AUTH_TOKEN", "").strip()
 
 # Timing en effectparameters
 COOLDOWN_SECONDS = float(os.getenv("COOLDOWN_SECONDS", "3.0"))
-MAX_EFFECT_DURATION_SECONDS = float(os.getenv("MAX_EFFECT_DURATION_SECONDS", "30.0"))
+MAX_EFFECT_DURATION_SECONDS = float(os.getenv("MAX_EFFECT_DURATION_SECONDS", "300.0"))
 
 # Paden
 MEDIA_DIR = Path(os.getenv("MEDIA_DIR", str(BASE_DIR / "media"))).resolve()

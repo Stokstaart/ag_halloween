@@ -4,7 +4,7 @@ import logging
 import random
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from app.config import (
     ALLOWED_MEDIA_EXTENSIONS,
@@ -35,8 +35,80 @@ class EffectEngine:
         self.disabled: bool = False
         self.volume: float = 1.0  # 0.0 - 1.0
         self.muted: bool = False
+        self._duration_cache: Dict[str, Tuple[float, float]] = {}
 
         self.load_configuration()
+
+    def _get_media_duration(self, file_path: Union[str, Path]) -> Optional[float]:
+        """Leest de exacte duur van een videobestand (MP4/WebM) in seconden via box header parsing."""
+        if isinstance(file_path, Path):
+            p = file_path
+        else:
+            resolved = self._is_safe_path(str(file_path))
+            p = resolved if resolved else (self.media_dir / str(file_path).lstrip("/"))
+
+        if not p or not p.is_file():
+            return None
+
+        try:
+            mtime = p.stat().st_mtime
+            key = str(p)
+            if key in self._duration_cache:
+                cached_mtime, cached_dur = self._duration_cache[key]
+                if cached_mtime == mtime:
+                    return cached_dur
+
+            dur = None
+            if p.suffix.lower() in (".mp4", ".m4v", ".mov"):
+                import struct
+                file_size = p.stat().st_size
+                with open(p, "rb") as f:
+                    while f.tell() < file_size:
+                        header = f.read(8)
+                        if len(header) < 8:
+                            break
+                        size, atom_type = struct.unpack(">I4s", header)
+                        if size == 1:
+                            size_bytes = f.read(8)
+                            if len(size_bytes) < 8:
+                                break
+                            size = struct.unpack(">Q", size_bytes)[0] - 8
+                        elif size == 0:
+                            size = file_size - f.tell() + 8
+
+                        if atom_type == b"moov":
+                            moov_bytes = f.read(max(0, size - 8))
+                            idx = moov_bytes.find(b"mvhd")
+                            if idx != -1:
+                                mvhd_data = moov_bytes[idx + 4 :]
+                                if len(mvhd_data) >= 20:
+                                    version = mvhd_data[0]
+                                    if version == 1 and len(mvhd_data) >= 32:
+                                        timescale, duration = struct.unpack(">IQ", mvhd_data[20:32])
+                                    else:
+                                        timescale, duration = struct.unpack(">II", mvhd_data[12:20])
+                                    if timescale > 0:
+                                        dur = round(duration / timescale, 2)
+                            break
+                        else:
+                            f.seek(max(0, size - 8), 1)
+
+            if dur is not None:
+                self._duration_cache[key] = (mtime, dur)
+                return dur
+
+        except Exception as e:
+            logger.debug("Fout bij uitlezen duur van %s: %s", p, e)
+
+        return None
+
+    def _calculate_effect_duration(self, file_path: Union[str, Path], fallback: float = 15.0) -> float:
+        """Berekent de effectieve effectduur met een kleine overlap (ongeveer 0.7s) voor een vloeiende overgang."""
+        raw = self._get_media_duration(file_path)
+        if raw and raw > 1.5:
+            overlap_duration = max(2.0, round(raw - 0.7, 1))
+            return min(overlap_duration, MAX_EFFECT_DURATION_SECONDS)
+        return min(fallback, MAX_EFFECT_DURATION_SECONDS)
 
     def _is_safe_path(self, relative_path: str) -> Optional[Path]:
         """Controleert of een bestandspad binnen de toegestane mediadirectory valt."""
@@ -283,6 +355,8 @@ class EffectEngine:
                     icon = "pumpkin"
 
                 display_name = stem.replace("_", " ").replace("-", " ").title()
+                duration = self._calculate_effect_duration(f, fallback=15.0)
+                raw_duration = self._get_media_duration(f)
                 dynamic_list.append({
                     "id": effect_id,
                     "name": display_name,
@@ -292,7 +366,8 @@ class EffectEngine:
                     "configured": True,
                     "type": "fullscreen",
                     "has_audio": True,
-                    "duration": 15.0,
+                    "duration": duration,
+                    "raw_duration": raw_duration,
                     "auto_return": True,
                     "description": f"Ontdekt effect ({f.name})",
                     "icon": icon,
@@ -307,7 +382,12 @@ class EffectEngine:
         result = []
         for effect_id, item in self.effects.items():
             file_path, exists, web_url = self._resolve_effect_file(item)
-            duration = min(float(item.get("duration", 10.0)), MAX_EFFECT_DURATION_SECONDS)
+            if exists:
+                duration = self._calculate_effect_duration(file_path, fallback=float(item.get("duration", 10.0)))
+                raw_duration = self._get_media_duration(file_path)
+            else:
+                duration = min(float(item.get("duration", 10.0)), MAX_EFFECT_DURATION_SECONDS)
+                raw_duration = None
             result.append({
                 "id": effect_id,
                 "name": item.get("name", effect_id),
@@ -318,6 +398,7 @@ class EffectEngine:
                 "type": item.get("type", "overlay"),
                 "has_audio": bool(item.get("has_audio", True)),
                 "duration": duration,
+                "raw_duration": raw_duration,
                 "auto_return": bool(item.get("auto_return", True)),
                 "description": item.get("description", ""),
                 "icon": item.get("icon", "ghost"),
@@ -335,7 +416,12 @@ class EffectEngine:
         item = self.effects.get(effect_id)
         if item:
             file_path, exists, web_url = self._resolve_effect_file(item)
-            duration = min(float(item.get("duration", 10.0)), MAX_EFFECT_DURATION_SECONDS)
+            if exists:
+                duration = self._calculate_effect_duration(file_path, fallback=float(item.get("duration", 10.0)))
+                raw_duration = self._get_media_duration(file_path)
+            else:
+                duration = min(float(item.get("duration", 10.0)), MAX_EFFECT_DURATION_SECONDS)
+                raw_duration = None
             return {
                 "id": effect_id,
                 "name": item.get("name", effect_id),
@@ -346,6 +432,7 @@ class EffectEngine:
                 "type": item.get("type", "overlay"),
                 "has_audio": bool(item.get("has_audio", True)),
                 "duration": duration,
+                "raw_duration": raw_duration,
                 "auto_return": bool(item.get("auto_return", True)),
                 "description": item.get("description", ""),
                 "icon": item.get("icon", "ghost"),
