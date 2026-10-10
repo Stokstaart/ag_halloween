@@ -90,7 +90,8 @@
 
     // Start achtergrondvideo indien beschikbaar
     if (bgVideo && bgVideo.src) {
-      bgVideo.muted = backgroundConfig ? backgroundConfig.muted : true;
+      bgVideo.muted = isMuted || (backgroundConfig ? backgroundConfig.muted === true : false);
+      bgVideo.volume = isMuted ? 0 : currentVolume;
       bgVideo.play().catch(err => {
         console.warn('Achtergrondvideo autoplay waarschuwing na unlock:', err);
       });
@@ -99,6 +100,7 @@
     // Probeer effectvideo kort gereed te maken voor audio
     if (effectVideo) {
       effectVideo.volume = isMuted ? 0 : currentVolume;
+      effectVideo.muted = isMuted;
     }
 
     updateDebugHud();
@@ -335,6 +337,10 @@
     } else if (type === 'volume_update') {
       currentVolume = data.volume !== undefined ? data.volume : currentVolume;
       isMuted = !!data.muted;
+      if (bgVideo) {
+        bgVideo.volume = isMuted ? 0 : currentVolume;
+        bgVideo.muted = isMuted || (backgroundConfig ? backgroundConfig.muted === true : false);
+      }
       if (effectVideo) {
         effectVideo.volume = isMuted ? 0 : currentVolume;
         effectVideo.muted = isMuted;

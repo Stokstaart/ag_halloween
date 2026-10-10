@@ -133,12 +133,50 @@ class EffectEngine:
             "muted": self.background_config.get("muted", True),
         }
 
+    def _resolve_effect_file(self, item: Dict[str, Any]) -> Tuple[str, bool, Optional[str]]:
+        """Zoekt het mediabestand voor een effect, inclusief automatische trefwoord-matching."""
+        file_path = item.get("file", "")
+        exists, web_url = self._check_file_exists(file_path)
+        if exists:
+            return file_path, True, web_url
+
+        effects_dir = self.media_dir / "effects"
+        if effects_dir.is_dir():
+            effect_id = item.get("id", "").lower()
+            keywords = [effect_id, effect_id.replace("_", " ")]
+            if effect_id == "ghost_attack": keywords.extend(["ghost", "spook", "geest"])
+            elif effect_id == "zombie": keywords.extend(["zombie", "undead"])
+            elif effect_id == "creepy_eyes": keywords.extend(["eyes", "ogen", "creepy"])
+            elif effect_id == "jumpscare": keywords.extend(["jump", "scare", "schrik", "monster"])
+            elif effect_id == "window_scratcher": keywords.extend(["scratch", "kras", "claw", "klauw"])
+
+            candidates = [
+                f for f in sorted(effects_dir.iterdir())
+                if f.is_file() and f.suffix.lower() in ALLOWED_MEDIA_EXTENSIONS and f.stat().st_size > 0
+            ]
+            for candidate in candidates:
+                c_name = candidate.stem.lower()
+                if any(kw in c_name for kw in keywords):
+                    rel = f"media/effects/{candidate.name}"
+                    c_exists, c_url = self._check_file_exists(rel)
+                    if c_exists:
+                        return rel, True, c_url
+
+            # Als er slechts één effectbestand in media/effects/ staat en dit is jumpscare:
+            if effect_id == "jumpscare" and len(candidates) == 1:
+                rel = f"media/effects/{candidates[0].name}"
+                c_exists, c_url = self._check_file_exists(rel)
+                if c_exists:
+                    return rel, True, c_url
+
+        return file_path, False, None
+
     def get_effects_list(self) -> List[Dict[str, Any]]:
         """Geeft alle effecten terug met hun configuratiestatus."""
+        self.load_configuration()
         result = []
         for effect_id, item in self.effects.items():
-            file_path = item.get("file", "")
-            exists, web_url = self._check_file_exists(file_path)
+            file_path, exists, web_url = self._resolve_effect_file(item)
             duration = min(float(item.get("duration", 10.0)), MAX_EFFECT_DURATION_SECONDS)
             result.append({
                 "id": effect_id,
@@ -158,11 +196,11 @@ class EffectEngine:
 
     def get_effect(self, effect_id: str) -> Optional[Dict[str, Any]]:
         """Haalt een specifiek effect op met actuele status."""
+        self.load_configuration()
         item = self.effects.get(effect_id)
         if not item:
             return None
-        file_path = item.get("file", "")
-        exists, web_url = self._check_file_exists(file_path)
+        file_path, exists, web_url = self._resolve_effect_file(item)
         duration = min(float(item.get("duration", 10.0)), MAX_EFFECT_DURATION_SECONDS)
         return {
             "id": effect_id,
