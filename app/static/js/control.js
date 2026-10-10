@@ -375,12 +375,34 @@
     btn.addEventListener('click', () => handleEffectClick(btn));
   });
 
-  // Emergency Stop / Return to Background
+  // Emergency Stop / Return to Background (Noodstop)
   if (btnEmergency) {
     btnEmergency.addEventListener('click', () => {
-      vibrate([50, 50]);
+      vibrate([60, 40, 60]);
+      // 1. Directe UI reset
+      stopActiveBanner();
+      startCooldown(2.0);
+
+      // 2. Direct via WebSocket verzenden indien open
       sendCommand('stop');
-      showToast('Noodstop: Teruggekeerd naar achtergrondvideo.');
+
+      // 3. Altijd gelijktijdig via HTTP POST /api/stop verzenden
+      // Dit garandeert dat de noodstop ONMIDDELLIJK werkt, zelfs als de WebSocket
+      // op de smartphone even sliep of aan het herverbinden was!
+      const stopUrl = '/api/stop' + (token ? '?token=' + encodeURIComponent(token) : '');
+      fetch(stopUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+        .then(res => res.json())
+        .then(data => {
+          console.info('Noodstop via HTTP bevestigd:', data);
+        })
+        .catch(err => {
+          console.warn('Noodstop HTTP fallback waarschuwing:', err);
+        });
+
+      showToast('🛑 Noodstop: Beamer keert direct terug naar achtergrond.');
     });
   }
 
@@ -431,6 +453,21 @@
       showToast(disabled ? 'Effecten tijdelijk uitgeschakeld.' : 'Effecten weer ingeschakeld.');
     });
   }
+
+  // Zorg voor onmiddellijk herstel van de verbinding wanneer het scherm ontwaakt op smartphone
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && (!ws || ws.readyState !== WebSocket.OPEN)) {
+      connectWebSocket();
+    }
+  });
+  window.addEventListener('focus', () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      connectWebSocket();
+    }
+  });
+  window.addEventListener('online', () => {
+    connectWebSocket();
+  });
 
   // Init
   window.addEventListener('DOMContentLoaded', () => {

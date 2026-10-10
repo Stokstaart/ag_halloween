@@ -60,6 +60,8 @@
       updateDebugHud();
     } else if (e.key === 'f' || e.key === 'F') {
       toggleFullscreen();
+    } else if (e.key === 'Escape' || e.key === 's' || e.key === 'S') {
+      returnToBackground(true);
     }
     // Druk op een willekeurige toets om media te unlocken op Android TV
     if (!isMediaUnlocked) {
@@ -331,8 +333,8 @@
     updateDebugHud();
   }
 
-  // Vloeiend terugkeren naar de achtergrond
-  function returnToBackground() {
+  // Terugkeren naar de achtergrond (zowel bij natuurlijk einde als noodstop)
+  function returnToBackground(isEmergency = false) {
     if (effectTimeoutTimer) {
       clearTimeout(effectTimeoutTimer);
       effectTimeoutTimer = null;
@@ -343,21 +345,40 @@
       currentOverlapHandler = null;
     }
 
-    // Herstel achtergrondweergave vóór fade-out effectvideo
-    if (activeBgVideo) {
-      activeBgVideo.style.opacity = '1';
-      activeBgVideo.muted = isMuted;
-      activeBgVideo.volume = isMuted ? 0 : currentVolume;
-      if (activeBgVideo.paused && activeBgVideo.src) {
-        activeBgVideo.play().catch(() => {});
+    const finishedId = currentActiveEffect ? currentActiveEffect.effect_id : null;
+    currentActiveEffect = null;
+
+    if (isEmergency) {
+      console.info('NOODSTOP UITGEVOERD: Direct effectvideo pauzeren en achtergrond herstellen.');
+      // 1. Direct jumpscare video pauzeren, dempen en zichtbaarheid wegnemen
+      try {
+        effectVideo.pause();
+        effectVideo.muted = true;
+        effectVideo.removeAttribute('src');
+        effectVideo.load();
+      } catch (e) {}
+      effectVideo.className = 'video-layer';
+
+      // 2. Direct achtergrond herstellen
+      if (activeBgVideo) {
+        activeBgVideo.style.opacity = '1';
+        activeBgVideo.muted = isMuted;
+        activeBgVideo.volume = isMuted ? 0 : currentVolume;
+        if (activeBgVideo.src) {
+          activeBgVideo.play().catch(() => {});
+        }
       }
-    }
-
-    if (currentActiveEffect) {
-      const finishedId = currentActiveEffect.effect_id;
-      currentActiveEffect = null;
-
+    } else {
       // Vloeiende fade-out effectvideo
+      if (activeBgVideo) {
+        activeBgVideo.style.opacity = '1';
+        activeBgVideo.muted = isMuted;
+        activeBgVideo.volume = isMuted ? 0 : currentVolume;
+        if (activeBgVideo.paused && activeBgVideo.src) {
+          activeBgVideo.play().catch(() => {});
+        }
+      }
+
       effectVideo.classList.remove('visible');
 
       setTimeout(() => {
@@ -366,16 +387,16 @@
           effectVideo.removeAttribute('src');
           effectVideo.load();
         } catch (e) {}
-
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            action: 'effect_ended',
-            effect_id: finishedId
-          }));
-        }
-        updateDebugHud();
       }, 350);
     }
+
+    if (ws && ws.readyState === WebSocket.OPEN && finishedId) {
+      ws.send(JSON.stringify({
+        action: 'effect_ended',
+        effect_id: finishedId
+      }));
+    }
+    updateDebugHud();
   }
 
   function notifyEffectError(effectId, message) {
@@ -480,9 +501,9 @@
     } else if (type === 'play_effect' || type === 'fullscreen' || type === 'overlay' || data.web_url) {
       console.info('play_effect signaal ontvangen:', data);
       playEffect(data);
-    } else if (type === 'stop_effect') {
+    } else if (type === 'stop_effect' || type === 'effect_stopped') {
       console.info('Noodstop / stop_effect commando ontvangen.');
-      returnToBackground();
+      returnToBackground(true);
     } else if (type === 'volume_update') {
       currentVolume = data.volume !== undefined ? data.volume : currentVolume;
       isMuted = !!data.muted;
