@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Halloween Projection Screen</title>
+  <link rel="stylesheet" href="/static/css/screen.css">
+</head>
+<body>
+  <div id="screen-container">
+    <!-- Achtergrond videolaag (continu in loop) -->
+    <video id="bg-video" class="video-layer" playsinline loop muted></video>
+
+    <!-- Effect videolaag (overlay of fullscreen) -->
+    <video id="effect-video" class="video-layer" playsinline></video>
+
+    <!-- Zwart blackout doek voor overgangen -->
+    <div id="blackout-overlay"></div>
+
+    <!-- Melding wanneer mediabestand nog niet aanwezig is -->
+    <div id="no-media-notice" {% if background.file_exists %}style="display:none;"{% endif %}>
+      <h2>🎃 Halloween Projectiescherm Actief</h2>
+      <p>Wachten op achtergrondvideo...</p>
+      <p style="font-size: 0.9rem; margin-top: 0.5rem; color: #88748d;">
+        Plaats <code>{{ background.file }}</code> op de server om de loop te starten.
+      </p>
+    </div>
+
+    <!-- Audio Autoplay Unlock Prompt voor Android TV browsers -->
+    <div id="unlock-overlay">
+      <div class="unlock-box">
+        <div class="unlock-icon">🔊</div>
+        <div class="unlock-title">Halloween Projectie Gereed</div>
+        <div class="unlock-subtitle">
+          Druk op <strong>OK</strong> op je afstandsbediening of klik hier om audio en beeld te activeren.
+        </div>
+      </div>
+    </div>
+
+    <!-- Debug HUD (optioneel) -->
+    <div id="debug-hud" {% if debug %}class="visible"{% endif %}></div>
+  </div>
+
+  <script src="/static/js/screen.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+services:
+  halloween-projection:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: halloween-projection
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8088}:8088"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8088
+      - AUTH_TOKEN=${AUTH_TOKEN:-}
+      - COOLDOWN_SECONDS=${COOLDOWN_SECONDS:-3.0}
+      - MAX_EFFECT_DURATION_SECONDS=${MAX_EFFECT_DURATION_SECONDS:-30.0}
+      - DEBUG=${DEBUG:-false}
+    volumes:
+      - ./media:/app/media
+      - ./config:/app/config
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8088/api/status', timeout=3).getcode() == 200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

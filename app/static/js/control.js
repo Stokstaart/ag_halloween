@@ -1,0 +1,306 @@
+/**
+ * Halloween Mobile Controller - Client Logic
+ */
+
+(function () {
+  'use strict';
+
+  // State
+  let ws = null;
+  let reconnectTimer = null;
+  let activeEffectTimer = null;
+  let cooldownTimer = null;
+  let currentVolume = 1.0;
+  let isMuted = false;
+  let effectsDisabled = false;
+  let screensConnected = 0;
+
+  // DOM elementen
+  const connectionDot = document.getElementById('connection-dot');
+  const connectionText = document.getElementById('connection-text');
+  const activeBanner = document.getElementById('active-banner');
+  const activeTitle = document.getElementById('active-title');
+  const activeRemaining = document.getElementById('active-remaining');
+  const progressBarFill = document.getElementById('progress-bar-fill');
+  const cooldownBanner = document.getElementById('cooldown-banner');
+  const cooldownRemaining = document.getElementById('cooldown-remaining');
+  const volumeSlider = document.getElementById('volume-slider');
+  const volumeVal = document.getElementById('volume-val');
+  const btnMute = document.getElementById('btn-mute');
+  const toggleDisabled = document.getElementById('toggle-disabled');
+  const btnEmergency = document.getElementById('btn-emergency');
+  const toastContainer = document.getElementById('toast-container');
+
+  // Token uit query params
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('token') || '';
+
+  // Haptische feedback op smartphone
+  function vibrate(ms = 35) {
+    if (navigator.vibrate) {
+      try { navigator.vibrate(ms); } catch (e) {}
+    }
+  }
+
+  // Toon toast bericht
+  function showToast(message, isError = false) {
+    if (!toastContainer) return;
+    const toast = document.createElement('div');
+    toast.className = `toast ${isError ? 'error' : ''}`;
+    toast.innerHTML = `<span>${isError ? '⚠️' : '🎃'}</span> <span>${message}</span>`;
+    toastContainer.appendChild(toast);
+    setTimeout(() => {
+      toast.style.transition = 'opacity 0.3s, transform 0.3s';
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+      setTimeout(() => toast.remove(), 300);
+    }, 3200);
+  }
+
+  // WebSocket verbinding opzetten
+  function connectWebSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    let wsUrl = `${protocol}//${window.location.host}/ws?role=control`;
+    if (token) {
+      wsUrl += `&token=${encodeURIComponent(token)}`;
+    }
+
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.info('Controller verbonden met WebSocket server.');
+      updateScreenStatus();
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleMessage(data);
+      } catch (e) {
+        console.error('Fout bij verwerken WS-bericht:', e);
+      }
+    };
+
+    ws.onclose = () => {
+      console.warn('WS verbinding met server verbroken. Reconnecting...');
+      setConnectionStatus(false, 0);
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connectWebSocket, 2000);
+    };
+
+    ws.onerror = (err) => {
+      console.error('WS fout:', err);
+    };
+  }
+
+  function setConnectionStatus(connected, screenCount) {
+    screensConnected = screenCount;
+    if (!connectionDot || !connectionText) return;
+
+    if (!connected || (ws && ws.readyState !== WebSocket.OPEN)) {
+      connectionDot.className = 'status-dot disconnected';
+      connectionText.textContent = 'Verbinding met server verbroken...';
+    } else if (screenCount > 0) {
+      connectionDot.className = 'status-dot connected';
+      connectionText.textContent = `Beamer verbonden (${screenCount} ${screenCount === 1 ? 'scherm' : 'schermen'})`;
+    } else {
+      connectionDot.className = 'status-dot disconnected';
+      connectionText.textContent = 'Geen beamer verbonden (Wachten op /screen)';
+    }
+  }
+
+  function updateScreenStatus() {
+    setConnectionStatus(ws && ws.readyState === WebSocket.OPEN, screensConnected);
+  }
+
+  // Berichtafhandeling
+  function handleMessage(data) {
+    const type = data.type;
+
+    if (type === 'init') {
+      screensConnected = data.screen_count || 0;
+      updateScreenStatus();
+      if (data.status) {
+        if (data.status.volume !== undefined) setVolumeUI(data.status.volume);
+        if (data.status.muted !== undefined) setMuteUI(data.status.muted);
+        if (data.status.disabled !== undefined) setDisabledUI(data.status.disabled);
+        if (data.status.active_effect_id) {
+          startActiveBanner(data.status.active_effect_id, 15);
+        }
+      }
+    } else if (type === 'connection_stats') {
+      screensConnected = data.screen_count || 0;
+      updateScreenStatus();
+    } else if (type === 'trigger_ack') {
+      if (data.success) {
+        vibrate(50);
+        showToast(`${data.name || data.effect_id} geactiveerd!`);
+      } else {
+        vibrate([30, 50, 30]);
+        showToast(data.reason || 'Kan effect niet starten.', true);
+      }
+    } else if (type === 'effect_active') {
+      startActiveBanner(data.name || data.effect_id, data.duration || 10);
+    } else if (type === 'effect_stopped') {
+      stopActiveBanner();
+      startCooldown(3.0);
+    } else if (type === 'playback_error') {
+      showToast(`Fout op beamer: ${data.message}`, true);
+      stopActiveBanner();
+    } else if (type === 'volume_update') {
+      if (data.volume !== undefined) setVolumeUI(data.volume);
+      if (data.muted !== undefined) setMuteUI(data.muted);
+    } else if (type === 'disabled_update') {
+      setDisabledUI(data.disabled);
+    }
+  }
+
+  // Actief bannerbeheer
+  function startActiveBanner(title, durationSeconds) {
+    if (!activeBanner) return;
+    activeTitle.textContent = title;
+    activeBanner.classList.add('visible');
+
+    const startTime = Date.now();
+    const totalMs = durationSeconds * 1000;
+
+    clearInterval(activeEffectTimer);
+    activeEffectTimer = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const remainingSec = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
+      activeRemaining.textContent = `${remainingSec}s`;
+
+      const pct = Math.max(0, Math.min(100, 100 - (elapsed / totalMs * 100)));
+      progressBarFill.style.width = `${pct}%`;
+
+      if (elapsed >= totalMs) {
+        stopActiveBanner();
+      }
+    }, 100);
+  }
+
+  function stopActiveBanner() {
+    clearInterval(activeEffectTimer);
+    if (activeBanner) {
+      activeBanner.classList.remove('visible');
+    }
+  }
+
+  // Cooldown beheer
+  function startCooldown(seconds) {
+    if (!cooldownBanner) return;
+    let remaining = seconds;
+    cooldownBanner.classList.add('visible');
+
+    clearInterval(cooldownTimer);
+    cooldownTimer = setInterval(() => {
+      remaining -= 0.2;
+      if (remaining <= 0) {
+        clearInterval(cooldownTimer);
+        cooldownBanner.classList.remove('visible');
+      } else {
+        cooldownRemaining.textContent = `${remaining.toFixed(1)}s`;
+      }
+    }, 200);
+  }
+
+  // Audio & Toggles UI
+  function setVolumeUI(vol) {
+    currentVolume = vol;
+    if (volumeSlider) volumeSlider.value = Math.round(vol * 100);
+    if (volumeVal) volumeVal.textContent = `${Math.round(vol * 100)}%`;
+  }
+
+  function setMuteUI(muted) {
+    isMuted = muted;
+    if (btnMute) {
+      btnMute.className = `btn-mute ${muted ? 'is-muted' : ''}`;
+      btnMute.textContent = muted ? '🔇' : '🔊';
+    }
+  }
+
+  function setDisabledUI(disabled) {
+    effectsDisabled = disabled;
+    if (toggleDisabled) toggleDisabled.checked = disabled;
+  }
+
+  // WS commando verzenden
+  function sendCommand(action, payload = {}) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      showToast('Niet verbonden met server. Even geduld...', true);
+      return;
+    }
+    ws.send(JSON.stringify({ action, ...payload }));
+  }
+
+  // Event Listeners voor Knoppen
+  document.querySelectorAll('.btn-effect').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      vibrate(25);
+      const isUnconfigured = btn.classList.contains('unconfigured');
+      const effectId = btn.dataset.effectId;
+      const isRandom = btn.dataset.action === 'random';
+
+      if (isUnconfigured) {
+        showToast(`Effect '${btn.querySelector('.effect-name').textContent}' is nog niet geconfigureerd: mediabestand ontbreekt in media/effects/.`, true);
+        return;
+      }
+
+      if (effectsDisabled) {
+        showToast('Effecten zijn momenteel uitgeschakeld via de schakelaar hieronder.', true);
+        return;
+      }
+
+      if (screensConnected === 0) {
+        showToast('Waarschuwing: er is momenteel geen beamer verbonden met /screen.', true);
+      }
+
+      if (isRandom) {
+        sendCommand('trigger_random');
+      } else if (effectId) {
+        sendCommand('trigger', { effect_id: effectId });
+      }
+    });
+  });
+
+  // Emergency Stop / Return to Background
+  if (btnEmergency) {
+    btnEmergency.addEventListener('click', () => {
+      vibrate([50, 50]);
+      sendCommand('stop');
+      showToast('Noodstop: Teruggekeerd naar achtergrondvideo.');
+    });
+  }
+
+  // Volume slider
+  if (volumeSlider) {
+    volumeSlider.addEventListener('input', (e) => {
+      const vol = parseFloat(e.target.value) / 100;
+      setVolumeUI(vol);
+      sendCommand('set_volume', { volume: vol });
+    });
+  }
+
+  // Mute knop
+  if (btnMute) {
+    btnMute.addEventListener('click', () => {
+      vibrate(20);
+      sendCommand('toggle_mute');
+    });
+  }
+
+  // Disabled Toggle
+  if (toggleDisabled) {
+    toggleDisabled.addEventListener('change', (e) => {
+      vibrate(20);
+      const disabled = e.target.checked;
+      sendCommand('set_disabled', { disabled });
+      showToast(disabled ? 'Effecten tijdelijk uitgeschakeld.' : 'Effecten weer ingeschakeld.');
+    });
+  }
+
+  // Init
+  window.addEventListener('DOMContentLoaded', () => {
+    connectWebSocket();
+  });
+})();

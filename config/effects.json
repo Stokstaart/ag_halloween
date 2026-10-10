@@ -1,0 +1,66 @@
+{
+  "version": "1.0",
+  "background": {
+    "file": "media/background/ambient_fog.mp4",
+    "description": "Doorlopende achtergrondanimatie (bijv. donker bos, dichte mist of flikkerend kaarslicht)",
+    "loop": true,
+    "muted": true
+  },
+  "effects": [
+    {
+      "id": "ghost_attack",
+      "name": "Ghost Attack",
+      "file": "media/effects/ghost_attack.mp4",
+      "type": "overlay",
+      "has_audio": true,
+      "duration": 12.0,
+      "auto_return": true,
+      "description": "Geestverschijning die bovenop de achtergrond zweeft met ijzingwekkende audio.",
+      "icon": "ghost"
+    },
+    {
+      "id": "zombie",
+      "name": "Zombie",
+      "file": "media/effects/zombie.mp4",
+      "type": "fullscreen",
+      "has_audio": true,
+      "duration": 15.0,
+      "auto_return": true,
+      "description": "Zombie breekt door het raam; neemt het volledige scherm over.",
+      "icon": "biohazard"
+    },
+    {
+      "id": "creepy_eyes",
+      "name": "Creepy Eyes",
+      "file": "media/effects/creepy_eyes.mp4",
+      "type": "overlay",
+      "has_audio": false,
+      "duration": 10.0,
+      "auto_return": true,
+      "description": "Gloeiende monsterogen staren vanuit het duister zonder geluid.",
+      "icon": "eye"
+    },
+    {
+      "id": "jumpscare",
+      "name": "Jumpscare",
+      "file": "media/effects/jumpscare.mp4",
+      "type": "fullscreen",
+      "has_audio": true,
+      "duration": 6.0,
+      "auto_return": true,
+      "description": "Plotselinge explosieve schrikscène met hard angstaanjagend geluid.",
+      "icon": "skull"
+    },
+    {
+      "id": "window_scratcher",
+      "name": "Window Scratcher",
+      "file": "media/effects/window_scratcher.mp4",
+      "type": "overlay",
+      "has_audio": true,
+      "duration": 14.0,
+      "auto_return": true,
+      "description": "Klauwen krassen langzaam over het glasoppervlak met akelig geluid.",
+      "icon": "claw"
+    }
+  ]
+}

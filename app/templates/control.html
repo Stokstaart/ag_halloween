@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Halloween Projection Control</title>
+  <link rel="stylesheet" href="/static/css/control.css">
+</head>
+<body>
+  <div class="controller-wrapper">
+    <header>
+      <div class="header-top">
+        <h1>🎃 Raamprojectie</h1>
+        {% if auth_configured %}
+          <span class="auth-badge auth-secured">🔒 Beveiligd</span>
+        {% else %}
+          <span class="auth-badge auth-unsecured" title="Geen token geconfigureerd">⚠️ LAN Open</span>
+        {% endif %}
+      </div>
+    </header>
+
+    <!-- Beamer Verbindingsstatus -->
+    <div class="status-bar">
+      <div class="connection-status">
+        <span id="connection-dot" class="status-dot disconnected"></span>
+        <span id="connection-text">Verbinding maken met server...</span>
+      </div>
+      <a href="/screen{% if token %}?token={{ token }}{% endif %}" target="_blank" style="color: var(--orange); text-decoration: none; font-size: 0.78rem;">
+        🔗 Naar Scherm
+      </a>
+    </div>
+
+    <!-- Actief Effect Banner (zichtbaar tijdens afspelen) -->
+    <div id="active-banner" class="active-banner">
+      <div class="active-header">
+        <span>NU ACTIEF OP RAAM</span>
+        <span id="active-remaining">--s</span>
+      </div>
+      <div id="active-title" class="active-title">Effect</div>
+      <div class="progress-bar-bg">
+        <div id="progress-bar-fill" class="progress-bar-fill"></div>
+      </div>
+    </div>
+
+    <!-- Cooldown Teller -->
+    <div id="cooldown-banner" class="cooldown-banner">
+      ⏳ Cooldown actief: nog <span id="cooldown-remaining">0.0s</span>
+    </div>
+
+    <!-- 7. Return to Background / Noodstop Knop -->
+    <button id="btn-emergency" class="btn-emergency" type="button">
+      <span>🛑</span>
+      <span>Return to Background (Noodstop)</span>
+    </button>
+
+    <!-- Effecten Raster (Knoppen 1 t/m 6) -->
+    <div class="effects-grid">
+      {% for effect in effects %}
+        {% set icon_char = '👻' %}
+        {% if effect.icon == 'biohazard' or effect.id == 'zombie' %}{% set icon_char = '🧟' %}
+        {% elif effect.icon == 'eye' or effect.id == 'creepy_eyes' %}{% set icon_char = '👁️' %}
+        {% elif effect.icon == 'skull' or effect.id == 'jumpscare' %}{% set icon_char = '💀' %}
+        {% elif effect.icon == 'claw' or effect.id == 'window_scratcher' %}{% set icon_char = '🐾' %}
+        {% endif %}
+
+        <button
+          type="button"
+          class="btn-effect {% if not effect.configured %}unconfigured{% endif %}"
+          data-effect-id="{{ effect.id }}"
+          title="{{ effect.description }}"
+        >
+          {% if not effect.configured %}
+            <span class="unconfigured-badge">GEEN BESTAND</span>
+          {% endif %}
+          <span class="effect-icon">{{ icon_char }}</span>
+          <span class="effect-name">{{ effect.name }}</span>
+          <span class="effect-meta">
+            {{ effect.type|capitalize }} • {{ effect.duration|int }}s
+            {% if not effect.has_audio %}• Stil{% endif %}
+          </span>
+        </button>
+      {% endfor %}
+
+      <!-- 6. Random Scare Knop -->
+      <button
+        type="button"
+        class="btn-effect btn-random"
+        data-action="random"
+        title="Activeert een willekeurig geconfigureerd effect"
+      >
+        <span class="effect-icon">🎲</span>
+        <div style="text-align: left;">
+          <div class="effect-name" style="font-size: 1.05rem;">Random Scare</div>
+          <div class="effect-meta">Activeert een willekeurig spookeffect</div>
+        </div>
+      </button>
+    </div>
+
+    <!-- 8. Audio Regeling & Opties -->
+    <div class="controls-card">
+      <div class="controls-card-title">Geluids- &amp; Systeembediening</div>
+
+      <div class="volume-row">
+        <!-- 8. Mute / Unmute Knop -->
+        <button id="btn-mute" class="btn-mute" type="button" title="Dempen / Dempen opheffen">
+          🔊
+        </button>
+        <input
+          id="volume-slider"
+          class="volume-slider"
+          type="range"
+          min="0"
+          max="100"
+          value="100"
+          title="Effectvolume"
+        >
+        <span id="volume-val" class="volume-val">100%</span>
+      </div>
+
+      <!-- Tijdelijk Uitschakelen Toggle -->
+      <div class="toggle-row">
+        <span class="toggle-label">Effecten tijdelijk pauzeren</span>
+        <label class="toggle-switch">
+          <input id="toggle-disabled" type="checkbox">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script src="/static/js/control.js"></script>
+</body>
+</html>

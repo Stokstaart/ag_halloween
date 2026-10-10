@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.env
+venv/
+.venv/
+.DS_Store
+*.log
+media/background/*
+!media/background/.gitkeep
+media/effects/*
+!media/effects/.gitkeep
+media/audio/*
+!media/audio/.gitkeep

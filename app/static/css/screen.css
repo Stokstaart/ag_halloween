@@ -1,0 +1,180 @@
+/* Reset en basisscherm voor beamerprojectie */
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #000000;
+  color: #ffffff;
+  font-family: system-ui, -apple-system, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: none; /* Verberg cursor op beamer */
+}
+
+/* Toon cursor bij beweging voor debugging */
+body.show-cursor {
+  cursor: default;
+}
+
+#screen-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  background: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Videolagen */
+.video-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+/* Achtergrondlaag */
+#bg-video {
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 1s ease-in-out;
+}
+
+#bg-video.visible {
+  opacity: 1;
+}
+
+/* Effectlaag */
+#effect-video {
+  z-index: 20;
+  opacity: 0;
+  transition: opacity 0.35s ease-in-out;
+}
+
+#effect-video.visible {
+  opacity: 1;
+}
+
+/* Overlay modus (bijv. transparant / blend optioneel) */
+#effect-video.mode-overlay {
+  z-index: 25;
+}
+
+/* Fullscreen modus (dekt alles volledig af) */
+#effect-video.mode-fullscreen {
+  z-index: 30;
+}
+
+/* Zwarte blackout overlay voor vloeiende overgangen of noodstop */
+#blackout-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  z-index: 15;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+#blackout-overlay.active {
+  opacity: 1;
+}
+
+/* Audio-unlock prompt voor Android TV browsers */
+#unlock-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 999;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  cursor: pointer;
+  transition: opacity 0.5s ease;
+}
+
+#unlock-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.unlock-box {
+  background: #140d18;
+  border: 2px solid #ff7518;
+  border-radius: 16px;
+  padding: 2.5rem 3.5rem;
+  box-shadow: 0 0 35px rgba(255, 117, 24, 0.4);
+}
+
+.unlock-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.unlock-title {
+  font-size: 1.8rem;
+  color: #ff7518;
+  margin-bottom: 0.75rem;
+  font-weight: 700;
+}
+
+.unlock-subtitle {
+  font-size: 1.15rem;
+  color: #d1c4d6;
+  max-width: 500px;
+  line-height: 1.5;
+}
+
+/* Placeholder wanneer er nog geen achtergrondbestand is */
+#no-media-notice {
+  position: absolute;
+  z-index: 5;
+  text-align: center;
+  color: #5a4b5e;
+  font-size: 1.1rem;
+  padding: 2rem;
+  pointer-events: none;
+}
+
+#no-media-notice h2 {
+  color: #ff7518;
+  margin-bottom: 0.5rem;
+  font-size: 1.6rem;
+}
+
+/* Debug HUD (alleen zichtbaar bij ?debug=1 of toets 'D') */
+#debug-hud {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 117, 24, 0.6);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #ff9d5c;
+  pointer-events: none;
+  display: none;
+  line-height: 1.5;
+}
+
+#debug-hud.visible {
+  display: block;
+}

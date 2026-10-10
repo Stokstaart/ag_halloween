@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Halloween Projection Control</title>
+  <style>
+    :root {
+      --bg: #09050b;
+      --card-bg: #140d18;
+      --accent-orange: #ff7518;
+      --accent-red: #c62828;
+      --text: #f0e6d2;
+      --text-muted: #9e8e9e;
+      --border: #2d1b33;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+    .container {
+      max-width: 720px;
+      width: 100%;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    h1 {
+      font-size: 2.2rem;
+      color: var(--accent-orange);
+      text-shadow: 0 0 15px rgba(255, 117, 24, 0.4);
+      margin-bottom: 0.5rem;
+      letter-spacing: 1px;
+    }
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+    }
+    .warning-banner {
+      background: rgba(198, 40, 40, 0.2);
+      border: 1px solid var(--accent-red);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.95rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+    @media (max-width: 600px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: var(--accent-orange);
+      box-shadow: 0 8px 24px rgba(255, 117, 24, 0.2);
+    }
+    .card .icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .card h2 {
+      font-size: 1.35rem;
+      color: var(--accent-orange);
+      margin-bottom: 0.5rem;
+    }
+    .card p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.4;
+      flex-grow: 1;
+      margin-bottom: 1rem;
+    }
+    .btn {
+      display: inline-block;
+      text-align: center;
+      background: #251329;
+      color: #fff;
+      padding: 0.65rem 1.25rem;
+      border-radius: 6px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+    }
+    .card:hover .btn {
+      background: var(--accent-orange);
+      color: #000;
+    }
+    .section-title {
+      font-size: 1.2rem;
+      color: var(--accent-orange);
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+    .info-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    .info-box code {
+      background: #000;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      color: #ff9d5c;
+    }
+    .status-pill {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .status-ok { background: rgba(76, 175, 80, 0.2); color: #81c784; }
+    .status-warn { background: rgba(255, 152, 0, 0.2); color: #ffb74d; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎃 Halloween Projection Control</h1>
+      <p class="subtitle">Draadloos spookachtige raamprojecties aansturen via beamer &amp; smartphone</p>
+    </header>
+
+    {% if not auth_configured %}
+    <div class="warning-banner">
+      <span>⚠️</span>
+      <div>
+        <strong>Onbeveiligde LAN-modus:</strong> Er is geen <code>AUTH_TOKEN</code> ingesteld. De controller is openlijk toegankelijk op jouw lokale netwerk.
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="grid">
+      <a href="/control{% if token %}?token={{ token }}{% endif %}" class="card">
+        <div class="icon">📱</div>
+        <h2>Mobile Controller</h2>
+        <p>Open deze interface op je smartphone om effecten te triggeren, volume te regelen of een noodstop uit te voeren.</p>
+        <span class="btn">Open Controller &rarr;</span>
+      </a>
+
+      <a href="/screen{% if token %}?token={{ token }}{% endif %}" class="card">
+        <div class="icon">📽️</div>
+        <h2>Projection Screen</h2>
+        <p>Open deze interface op de beamerbrowser (bv. Android TV). Speelt automatisch de achtergrondloop en schrikeffecten af.</p>
+        <span class="btn">Open Scherm &rarr;</span>
+      </a>
+    </div>
+
+    <h3 class="section-title">Huidige Systeemstatus</h3>
+    <div class="info-box">
+      <p>Verbonden projectieschermen:
+        {% if screen_count > 0 %}
+          <span class="status-pill status-ok">{{ screen_count }} online</span>
+        {% else %}
+          <span class="status-pill status-warn">0 (wachten op beamer)</span>
+        {% endif %}
+      </p>
+      <p style="margin-top: 0.5rem;">Achtergrondvideo:
+        {% if background.file_exists %}
+          <span class="status-pill status-ok">Aanwezig ({{ background.file }})</span>
+        {% else %}
+          <span class="status-pill status-warn">Nog niet aanwezig (Plaats in <code>{{ background.file }}</code>)</span>
+        {% endif %}
+      </p>
+      <p style="margin-top: 0.5rem;">Geconfigureerde effecten met video:
+        <strong>{{ effects|selectattr('configured')|list|length }} van de {{ effects|length }}</strong>
+      </p>
+    </div>
+
+    <h3 class="section-title">Instructie voor Mediabestanden</h3>
+    <div class="info-box">
+      Plaats je MP4 (H.264 / AAC) videobestanden in de mappen:
+      <ul style="margin: 0.5rem 0 0.5rem 1.5rem;">
+        <li><code>media/background/ambient_fog.mp4</code></li>
+        <li><code>media/effects/ghost_attack.mp4</code></li>
+        <li><code>media/effects/zombie.mp4</code></li>
+        <li><code>media/effects/creepy_eyes.mp4</code></li>
+        <li><code>media/effects/jumpscare.mp4</code></li>
+        <li><code>media/effects/window_scratcher.mp4</code></li>
+      </ul>
+      Zodra een bestand wordt geplaatst, wordt het effect automatisch geactiveerd op de controller.
+    </div>
+  </div>
+</body>
+</html>
