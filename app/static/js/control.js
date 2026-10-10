@@ -252,7 +252,6 @@
       startActiveBanner(data.name || data.effect_id, data.duration || 10);
     } else if (type === 'effect_stopped') {
       stopActiveBanner();
-      startCooldown(1.5);
     } else if (type === 'playback_error') {
       showToast(`Fout op beamer: ${data.message}`, true);
       stopActiveBanner();
@@ -297,7 +296,10 @@
 
   // Cooldown beheer
   function startCooldown(seconds) {
-    if (!cooldownBanner) return;
+    if (!cooldownBanner || !seconds || seconds <= 0) {
+      if (cooldownBanner) cooldownBanner.classList.remove('visible');
+      return;
+    }
     let remaining = seconds;
     cooldownBanner.classList.add('visible');
 
@@ -418,7 +420,6 @@
       vibrate([60, 40, 60]);
       // 1. Directe UI reset
       stopActiveBanner();
-      startCooldown(2.0);
 
       // 2. Direct via WebSocket verzenden indien open
       sendCommand('stop');

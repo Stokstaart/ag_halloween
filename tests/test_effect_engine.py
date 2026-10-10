@@ -94,8 +94,8 @@ def test_trigger_and_cooldown(temp_env):
     assert success is True
     assert payload["effect_id"] == "ghost_attack"
 
-    # 2. Poging om direct een nieuw effect te starten terwijl er een actief is
-    success2, reason2, _ = engine.trigger_effect("ghost_attack")
+    # 2. Poging om direct een nieuw effect te starten terwijl er een actief is (zonder force)
+    success2, reason2, _ = engine.trigger_effect("ghost_attack", force=False)
     assert success2 is False
     assert "Er speelt al een effect" in reason2
 
@@ -103,10 +103,17 @@ def test_trigger_and_cooldown(temp_env):
     engine.stop_effect()
     assert engine.active_effect_id is None
 
-    # 4. Direct proberen te starten tijdens cooldown
+    # 4. Met default zero-cooldown (timeout gedropt) kan operator direct weer klikken!
     success3, reason3, _ = engine.trigger_effect("ghost_attack")
-    assert success3 is False
-    assert "Cooldown actief" in reason3
+    assert success3 is True
+
+    # 5. Indien expliciet een cooldown geconfigureerd is (bv. 3.0s) wordt deze nageleefd bij force=False
+    engine.cooldown_seconds = 3.0
+    engine.stop_effect()
+    assert engine.get_cooldown_remaining() > 0
+    success4, reason4, _ = engine.trigger_effect("ghost_attack", force=False)
+    assert success4 is False
+    assert "Cooldown actief" in reason4
 
 
 def test_trigger_unconfigured_rejected(temp_env):
@@ -195,7 +202,8 @@ def test_force_trigger_overrides_active_effect_and_cooldown(temp_env):
     assert s3 is True
     assert engine.active_effect_id == "ghost_attack"
 
-    # 4. Stop effect (start cooldown)
+    # 4. Stop effect met actieve cooldown
+    engine.cooldown_seconds = 3.0
     engine.stop_effect()
     assert engine.get_cooldown_remaining() > 0
 

@@ -18,7 +18,7 @@ DEBUG = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "").strip()
 
 # Timing en effectparameters
-COOLDOWN_SECONDS = float(os.getenv("COOLDOWN_SECONDS", "3.0"))
+COOLDOWN_SECONDS = float(os.getenv("COOLDOWN_SECONDS", "0.0"))
 MAX_EFFECT_DURATION_SECONDS = float(os.getenv("MAX_EFFECT_DURATION_SECONDS", "300.0"))
 
 # Paden

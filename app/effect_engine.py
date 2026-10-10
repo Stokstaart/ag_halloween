@@ -20,9 +20,10 @@ logger = logging.getLogger("halloween.effect_engine")
 class EffectEngine:
     """Beheert effectconfiguraties, mediabestanden en runtime-status."""
 
-    def __init__(self, config_path: Path = CONFIG_FILE, media_dir: Path = MEDIA_DIR):
+    def __init__(self, config_path: Path = CONFIG_FILE, media_dir: Path = MEDIA_DIR, cooldown_seconds: Optional[float] = None):
         self.config_path = config_path
         self.media_dir = media_dir
+        self.cooldown_seconds = float(cooldown_seconds) if cooldown_seconds is not None else COOLDOWN_SECONDS
 
         self.background_config: Dict[str, Any] = {}
         self.effects: Dict[str, Dict[str, Any]] = {}
@@ -477,9 +478,11 @@ class EffectEngine:
 
     def get_cooldown_remaining(self) -> float:
         """Berekent de resterende cooldowntijd in seconden."""
+        if self.cooldown_seconds <= 0:
+            return 0.0
         now = time.time()
         elapsed = now - self.last_effect_ended_at
-        remaining = max(0.0, COOLDOWN_SECONDS - elapsed)
+        remaining = max(0.0, self.cooldown_seconds - elapsed)
         return round(remaining, 1)
 
     def can_trigger(self, force: bool = False) -> Tuple[bool, str, float]:
@@ -562,10 +565,10 @@ class EffectEngine:
         self.active_effect_id = None
         self.active_effect_started_at = None
         self.last_effect_ended_at = time.time()
-        logger.info("Effect gestopt: %s. Cooldown gestart.", stopped_id)
+        logger.info("Effect gestopt: %s.", stopped_id)
         return {
             "stopped_effect_id": stopped_id,
-            "cooldown": COOLDOWN_SECONDS,
+            "cooldown": self.cooldown_seconds,
         }
 
     def set_volume(self, volume: float) -> float:
