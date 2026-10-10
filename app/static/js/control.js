@@ -252,7 +252,7 @@
       startActiveBanner(data.name || data.effect_id, data.duration || 10);
     } else if (type === 'effect_stopped') {
       stopActiveBanner();
-      startCooldown(3.0);
+      startCooldown(1.5);
     } else if (type === 'playback_error') {
       showToast(`Fout op beamer: ${data.message}`, true);
       stopActiveBanner();
@@ -333,17 +333,54 @@
     if (toggleDisabled) toggleDisabled.checked = disabled;
   }
 
-  // WS commando verzenden
+  // WS commando verzenden met directe HTTP fallback
   function sendCommand(action, payload = {}) {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      showToast('Niet verbonden met server. Even geduld...', true);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ action, ...payload }));
       return;
     }
-    ws.send(JSON.stringify({ action, ...payload }));
+
+    console.warn(`WebSocket niet open (status ${ws ? ws.readyState : 'null'}). Fallback naar HTTP voor: ${action}`);
+
+    // HTTP Fallbacks garanderen dat bediening op smartphone ALTIJD direct reageert
+    if (action === 'trigger') {
+      const triggerUrl = '/api/trigger' + (token ? '?token=' + encodeURIComponent(token) : '');
+      fetch(triggerUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ effect_id: payload.effect_id, force: true })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          vibrate(50);
+          showToast(`${data.effect?.name || payload.effect_id} geactiveerd!`);
+          startActiveBanner(data.effect?.name || payload.effect_id, data.effect?.duration || 10);
+        } else {
+          showToast(data.detail || 'Kan effect niet starten.', true);
+        }
+      })
+      .catch(() => {
+        showToast('Kan server niet bereiken.', true);
+      });
+    } else if (action === 'stop') {
+      const stopUrl = '/api/stop' + (token ? '?token=' + encodeURIComponent(token) : '');
+      fetch(stopUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+        .then(() => stopActiveBanner())
+        .catch(() => {});
+    } else {
+      showToast('Niet verbonden met server. Even geduld...', true);
+    }
   }
 
   // Klikafhandeling voor effectknoppen
+  let lastClickTime = 0;
   function handleEffectClick(btn) {
+    const now = Date.now();
+    // Snelle debounce van 250ms tegen per ongeluk dubbeltikken
+    if (now - lastClickTime < 250) return;
+    lastClickTime = now;
+
     vibrate(25);
     const isUnconfigured = btn.classList.contains('unconfigured');
     const effectId = btn.dataset.effectId;
@@ -364,9 +401,9 @@
     }
 
     if (isRandom) {
-      sendCommand('trigger_random');
+      sendCommand('trigger_random', { force: true });
     } else if (effectId) {
-      sendCommand('trigger', { effect_id: effectId });
+      sendCommand('trigger', { effect_id: effectId, force: true });
     }
   }
 
@@ -454,19 +491,44 @@
     });
   }
 
-  // Zorg voor onmiddellijk herstel van de verbinding wanneer het scherm ontwaakt op smartphone
+  function syncServerStatus() {
+    fetch('/api/status' + (token ? '?token=' + encodeURIComponent(token) : ''))
+      .then(res => res.json())
+      .then(data => {
+        if (!data) return;
+        if (data.screens_connected !== undefined) {
+          screensConnected = data.screens_connected;
+          updateScreenStatus();
+        }
+        if (data.engine) {
+          if (data.engine.active_effect_id) {
+            startActiveBanner(data.engine.active_effect_id, 15);
+          } else {
+            stopActiveBanner();
+          }
+        }
+      })
+      .catch(() => {});
+  }
+
+  // Zorg voor onmiddellijk herstel van de verbinding en status wanneer het scherm ontwaakt op smartphone
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && (!ws || ws.readyState !== WebSocket.OPEN)) {
-      connectWebSocket();
+    if (!document.hidden) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        connectWebSocket();
+      }
+      syncServerStatus();
     }
   });
   window.addEventListener('focus', () => {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       connectWebSocket();
     }
+    syncServerStatus();
   });
   window.addEventListener('online', () => {
     connectWebSocket();
+    syncServerStatus();
   });
 
   // Init

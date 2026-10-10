@@ -107,3 +107,19 @@ async def test_api_backgrounds():
             post_data = resp_post.json()
             assert post_data["success"] is True
             assert target in post_data["background"]["file"]
+
+
+@pytest.mark.asyncio
+async def test_api_effect_ended():
+    """Test /api/effect-ended fallback endpoint."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Start een effect
+        engine.trigger_effect("ghost_attack", force=True)
+        assert engine.active_effect_id == "ghost_attack"
+
+        # Beëindig via HTTP fallback
+        resp = await client.post("/api/effect-ended", json={"effect_id": "ghost_attack"})
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        assert engine.active_effect_id is None
+

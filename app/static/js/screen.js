@@ -390,12 +390,26 @@
       }, 350);
     }
 
+    // 1. WebSocket melding indien verbonden
     if (ws && ws.readyState === WebSocket.OPEN && finishedId) {
       ws.send(JSON.stringify({
         action: 'effect_ended',
         effect_id: finishedId
       }));
     }
+
+    // 2. HTTP Fallback (garandeert dat server status ALTIJD gereset wordt, zelfs bij haperende WS)
+    if (finishedId) {
+      const endUrl = '/api/effect-ended' + (token ? '?token=' + encodeURIComponent(token) : '');
+      fetch(endUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ effect_id: finishedId })
+      }).catch(err => {
+        console.debug('HTTP effect-ended melding fallback:', err);
+      });
+    }
+
     updateDebugHud();
   }
 

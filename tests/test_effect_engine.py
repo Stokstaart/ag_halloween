@@ -175,3 +175,55 @@ def test_effect_duration_reading():
         assert ghost["raw_duration"] is not None
         assert abs(ghost["raw_duration"] - 9.0) < 0.5
 
+
+def test_force_trigger_overrides_active_effect_and_cooldown(temp_env):
+    """Test dat force=True een actief effect direct vervangt en cooldown omzeilt."""
+    engine, _, _ = temp_env
+
+    # 1. Start effect
+    s1, _, p1 = engine.trigger_effect("ghost_attack")
+    assert s1 is True
+    assert engine.active_effect_id == "ghost_attack"
+
+    # 2. Zonder force wordt een volgend effect geweigerd
+    s2, r2, _ = engine.trigger_effect("ghost_attack", force=False)
+    assert s2 is False
+    assert "Er speelt al een effect" in r2
+
+    # 3. Met force=True wordt het effect direct naadloos overschreven!
+    s3, r3, p3 = engine.trigger_effect("ghost_attack", force=True)
+    assert s3 is True
+    assert engine.active_effect_id == "ghost_attack"
+
+    # 4. Stop effect (start cooldown)
+    engine.stop_effect()
+    assert engine.get_cooldown_remaining() > 0
+
+    # 5. Tijdens cooldown: zonder force geweigerd, met force direct toegestaan!
+    s4, r4, _ = engine.trigger_effect("ghost_attack", force=False)
+    assert s4 is False
+    assert "Cooldown actief" in r4
+
+    s5, r5, p5 = engine.trigger_effect("ghost_attack", force=True)
+    assert s5 is True
+    assert engine.active_effect_id == "ghost_attack"
+
+
+def test_background_in_effects_folder(temp_env):
+    """Test dat een achtergrondbestand in de effects folder niet als jumpscare wordt gezien."""
+    engine, media_dir, _ = temp_env
+    eff_dir = media_dir / "effects"
+    bg_eff = eff_dir / "achtergrond_zombies_test.mp4"
+    bg_eff.write_bytes(b"\x00\x00\x00\x20ftypisom" + b"z" * 100)
+
+    # Mag NIET als zombie jumpscare gematcht worden
+    effects = engine.get_effects_list()
+    zombie = next(e for e in effects if e["id"] == "missing_zombie")
+    assert zombie["configured"] is False
+    assert zombie["file_exists"] is False
+
+    # Moet WEL beschikbaar zijn in get_background_list()
+    bg_list = engine.get_background_list()
+    assert any("achtergrond_zombies_test.mp4" in b["filename"] for b in bg_list)
+
+

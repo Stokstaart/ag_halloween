@@ -1,4 +1,5 @@
 """Halloween Projection Control - Hoofdapplicatie (FastAPI)."""
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -57,6 +58,28 @@ app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
 # Core services
 engine = EffectEngine()
 manager = ConnectionManager()
+active_watchdog_task: Optional[asyncio.Task] = None
+
+
+def schedule_watchdog(eid: str, duration: float) -> None:
+    """Start een waakhond-timer om vastgelopen status te resetten als de beamer onverhoopt uitvalt."""
+    global active_watchdog_task
+    if active_watchdog_task and not active_watchdog_task.done():
+        active_watchdog_task.cancel()
+
+    async def _watchdog():
+        try:
+            await asyncio.sleep(duration + 2.5)
+            if engine.active_effect_id == eid:
+                logger.warning("Watchdog: effect %s duur verstreken, forceren automatische reset.", eid)
+                engine.stop_effect()
+                await manager.broadcast_to_screens({"type": "stop_effect"})
+                await manager.broadcast_to_controllers({"type": "effect_stopped", "effect_id": eid})
+        except asyncio.CancelledError:
+            pass
+
+    active_watchdog_task = asyncio.create_task(_watchdog())
+
 
 # Beveiliging: optionele Bearer auth
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -94,6 +117,7 @@ def verify_token(
 # Pydantic models voor REST endpoints
 class TriggerRequest(BaseModel):
     effect_id: str = Field(..., description="Unieke ID van het af te spelen effect")
+    force: Optional[bool] = Field(False, description="Overschrijf actief effect of cooldown direct")
 
 
 class VolumeRequest(BaseModel):
@@ -243,7 +267,7 @@ async def api_set_background(payload: BackgroundRequest, authenticated: bool = D
 @app.post("/api/trigger")
 async def api_trigger(payload: TriggerRequest, authenticated: bool = Depends(verify_token)):
     """Triggert een effect via REST (handig voor bijv. Home Assistant rest_command)."""
-    success, reason, effect_payload = engine.trigger_effect(payload.effect_id)
+    success, reason, effect_payload = engine.trigger_effect(payload.effect_id, force=bool(payload.force))
     if not success:
         raise HTTPException(status_code=400, detail=reason)
 
@@ -262,16 +286,44 @@ async def api_trigger(payload: TriggerRequest, authenticated: bool = Depends(ver
         "duration": effect_payload["duration"],
     })
 
+    # Start waakhond
+    schedule_watchdog(effect_payload["effect_id"], effect_payload["duration"])
+
     return {"success": True, "message": "Effect geactiveerd", "effect": effect_payload}
 
 
 @app.post("/api/stop")
 async def api_stop(authenticated: bool = Depends(verify_token)):
     """Stopt direct het actieve effect en keert terug naar de achtergrond."""
+    global active_watchdog_task
+    if active_watchdog_task and not active_watchdog_task.done():
+        active_watchdog_task.cancel()
+
     result = engine.stop_effect()
     await manager.broadcast_to_screens({"type": "stop_effect"})
     await manager.broadcast_to_controllers({"type": "effect_stopped"})
     return {"success": True, "message": "Teruggekeerd naar achtergrond", **result}
+
+
+@app.post("/api/effect-ended")
+async def api_effect_ended(request: Request, authenticated: bool = Depends(verify_token)):
+    """Meldt voltooiing van effect via HTTP fallback vanaf het beamer scherm."""
+    global active_watchdog_task
+    if active_watchdog_task and not active_watchdog_task.done():
+        active_watchdog_task.cancel()
+
+    finished_id = engine.active_effect_id
+    try:
+        body = await request.json()
+        if isinstance(body, dict) and body.get("effect_id"):
+            finished_id = body.get("effect_id")
+    except Exception:
+        pass
+
+    logger.info("Projectiescherm meldt voltooiing via HTTP fallback: %s", finished_id)
+    result = engine.stop_effect()
+    await manager.broadcast_to_controllers({"type": "effect_stopped", "effect_id": finished_id})
+    return {"success": True, "message": "Effect beëindigd", **result}
 
 
 @app.post("/api/volume")
@@ -386,8 +438,9 @@ async def websocket_endpoint(websocket: WebSocket):
             else:
                 if action == "trigger":
                     effect_id = data.get("effect_id")
-                    logger.info("Trigger commando ontvangen van controller voor: %s", effect_id)
-                    success, reason, effect_payload = engine.trigger_effect(effect_id)
+                    force = data.get("force", True)
+                    logger.info("Trigger commando ontvangen van controller voor: %s (force=%s)", effect_id, force)
+                    success, reason, effect_payload = engine.trigger_effect(effect_id, force=force)
                     if success:
                         logger.info("Effect %s gevalideerd, broadcasting naar beamers...", effect_id)
                         # Bevestiging aan controller
@@ -410,15 +463,8 @@ async def websocket_endpoint(websocket: WebSocket):
                             "name": effect_payload["name"],
                             "duration": effect_payload["duration"],
                         })
-                        # Watchdog om vastlopen van state te voorkomen
-                        async def _watchdog(eid: str, delay: float):
-                            await asyncio.sleep(delay)
-                            if engine.active_effect_id == eid:
-                                logger.warning("Watchdog: effect %s duur verstreken, forceren reset.", eid)
-                                engine.stop_effect()
-                                await manager.broadcast_to_screens({"type": "stop_effect"})
-                                await manager.broadcast_to_controllers({"type": "effect_stopped", "effect_id": eid})
-                        asyncio.create_task(_watchdog(effect_payload["effect_id"], effect_payload["duration"] + 3.5))
+                        # Waakhond starten
+                        schedule_watchdog(effect_payload["effect_id"], effect_payload["duration"])
                     else:
                         logger.warning("Trigger voor %s geweigerd: %s", effect_id, reason)
                         await manager.send_personal(websocket, {
@@ -429,7 +475,8 @@ async def websocket_endpoint(websocket: WebSocket):
                         })
 
                 elif action == "trigger_random":
-                    success, reason, effect_payload = engine.trigger_random()
+                    force = data.get("force", True)
+                    success, reason, effect_payload = engine.trigger_random(force=force)
                     if success:
                         await manager.send_personal(websocket, {
                             "type": "trigger_ack",
@@ -449,15 +496,8 @@ async def websocket_endpoint(websocket: WebSocket):
                             "name": effect_payload["name"],
                             "duration": effect_payload["duration"],
                         })
-                        import asyncio
-                        async def _watchdog_random(eid: str, delay: float):
-                            await asyncio.sleep(delay)
-                            if engine.active_effect_id == eid:
-                                logger.warning("Watchdog (random): effect %s duur verstreken, forceren reset.", eid)
-                                engine.stop_effect()
-                                await manager.broadcast_to_screens({"type": "stop_effect"})
-                                await manager.broadcast_to_controllers({"type": "effect_stopped", "effect_id": eid})
-                        asyncio.create_task(_watchdog_random(effect_payload["effect_id"], effect_payload["duration"] + 3.5))
+                        # Waakhond starten
+                        schedule_watchdog(effect_payload["effect_id"], effect_payload["duration"])
                     else:
                         await manager.send_personal(websocket, {
                             "type": "trigger_ack",

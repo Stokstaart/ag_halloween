@@ -225,22 +225,32 @@ class EffectEngine:
         }
 
     def get_background_list(self) -> List[Dict[str, Any]]:
-        """Scant media/background/ naar alle beschikbare achtergrondvideo's."""
+        """Scant media/background/ en media/effects/ naar alle beschikbare achtergrondvideo's."""
         self.load_configuration()
         bg_dir = self.media_dir / "background"
+        effects_dir = self.media_dir / "effects"
         current_bg = self.get_background()
         current_file = current_bg.get("file", "")
 
         results = []
-        if bg_dir.is_dir():
-            for f in sorted(bg_dir.iterdir()):
+        seen_filenames = set()
+
+        def _add_candidates(directory: Path, folder_prefix: str, filter_prefix: bool = False):
+            if not directory.is_dir():
+                return
+            for f in sorted(directory.iterdir()):
                 if (f.is_file() and 
                     f.suffix.lower() in ALLOWED_MEDIA_EXTENSIONS and 
                     f.stat().st_size > 0 and
                     not f.name.endswith(".dwsupload") and
                     not f.name.endswith(".part") and
                     not f.name.endswith(".tmp")):
-                    rel_path = f"media/background/{f.name}"
+                    if filter_prefix and not (f.stem.lower().startswith("achtergrond") or f.stem.lower().startswith("background")):
+                        continue
+                    if f.name.lower() in seen_filenames:
+                        continue
+                    seen_filenames.add(f.name.lower())
+                    rel_path = f"{folder_prefix}/{f.name}"
                     _, web_url = self._check_file_exists(rel_path)
                     name = f.stem.replace("_", " ").replace("-", " ")
                     results.append({
@@ -251,6 +261,9 @@ class EffectEngine:
                         "web_url": web_url,
                         "is_active": (rel_path == current_file or f.name in current_file),
                     })
+
+        _add_candidates(bg_dir, "media/background", filter_prefix=False)
+        _add_candidates(effects_dir, "media/effects", filter_prefix=True)
         return results
 
     def set_background(self, target: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
@@ -259,13 +272,19 @@ class EffectEngine:
             return False, "Geen bestand opgegeven.", None
 
         bg_dir = self.media_dir / "background"
+        effects_dir = self.media_dir / "effects"
         clean_name = Path(target).name
+
         target_file = bg_dir / clean_name
+        rel_path = f"media/background/{clean_name}"
 
         if not target_file.is_file() or target_file.stat().st_size == 0:
-            return False, f"Achtergrondbestand '{clean_name}' niet gevonden in media/background/.", None
+            target_file = effects_dir / clean_name
+            rel_path = f"media/effects/{clean_name}"
 
-        rel_path = f"media/background/{clean_name}"
+        if not target_file.is_file() or target_file.stat().st_size == 0:
+            return False, f"Achtergrondbestand '{clean_name}' niet gevonden.", None
+
         self.active_background_file = rel_path
         logger.info("Achtergrond handmatig gewijzigd naar: %s", rel_path)
         return True, f"Achtergrond gewijzigd naar '{clean_name}'", self.get_background()
@@ -290,6 +309,11 @@ class EffectEngine:
             candidates = [
                 f for f in sorted(effects_dir.iterdir())
                 if f.is_file() and f.suffix.lower() in ALLOWED_MEDIA_EXTENSIONS and f.stat().st_size > 0
+                and not f.name.endswith(".dwsupload")
+                and not f.name.endswith(".part")
+                and not f.name.endswith(".tmp")
+                and not f.stem.lower().startswith("achtergrond")
+                and not f.stem.lower().startswith("background")
             ]
             for candidate in candidates:
                 c_name = candidate.stem.lower()
@@ -458,10 +482,13 @@ class EffectEngine:
         remaining = max(0.0, COOLDOWN_SECONDS - elapsed)
         return round(remaining, 1)
 
-    def can_trigger(self) -> Tuple[bool, str, float]:
+    def can_trigger(self, force: bool = False) -> Tuple[bool, str, float]:
         """Controleert of een nieuw effect mag worden gestart."""
         if self.disabled:
             return False, "Effecten zijn tijdelijk uitgeschakeld.", 0.0
+
+        if force:
+            return True, "Gereed", 0.0
 
         if self.active_effect_id is not None:
             # Controleer of effect niet over de maximale duur heen is gelopen
@@ -478,11 +505,21 @@ class EffectEngine:
 
         return True, "Gereed", 0.0
 
-    def trigger_effect(self, effect_id: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    def trigger_effect(self, effect_id: str, force: bool = False) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Start een effect indien gevalideerd."""
-        can, reason, remaining = self.can_trigger()
-        if not can:
-            return False, reason, None
+        if self.disabled:
+            return False, "Effecten zijn tijdelijk uitgeschakeld.", None
+
+        if not force:
+            can, reason, remaining = self.can_trigger(force=False)
+            if not can:
+                return False, reason, None
+        else:
+            # Bij geforceerde/handmatige bediening vanaf de controller:
+            # als er al een effect speelt, schakel direct naadloos over naar het nieuwe effect!
+            if self.active_effect_id is not None:
+                logger.info("Handmatige controller trigger: vorig effect %s direct overschrijven met %s", self.active_effect_id, effect_id)
+                self.stop_effect()
 
         effect = self.get_effect(effect_id)
         if not effect:
@@ -510,14 +547,14 @@ class EffectEngine:
         }
         return True, "Effect gestart", payload
 
-    def trigger_random(self) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    def trigger_random(self, force: bool = False) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Kiest en start een willekeurig geconfigureerd effect."""
         configured_effects = [e for e in self.get_effects_list() if e["configured"]]
         if not configured_effects:
             return False, "Geen enkel geconfigureerd effect met bestaand mediabestand gevonden.", None
 
         chosen = random.choice(configured_effects)
-        return self.trigger_effect(chosen["id"])
+        return self.trigger_effect(chosen["id"], force=force)
 
     def stop_effect(self) -> Dict[str, Any]:
         """Stopt direct het actieve effect en keert terug naar de achtergrond."""
