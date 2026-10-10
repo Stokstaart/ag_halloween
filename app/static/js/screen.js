@@ -196,7 +196,21 @@
       effectVideo.classList.add('visible');
       updateDebugHud();
     }).catch(err => {
-      console.error('Fout bij afspelen van effectvideo:', err);
+      console.warn('Fout bij afspelen van effectvideo:', err);
+      // Als de browser autoplay met geluid blokkeert, speel dan af met dempen als fallback
+      if (err.name === 'NotAllowedError') {
+        console.warn('Browser autoplay beleid blokkeert audio. Speelt gedempt af als fallback...');
+        effectVideo.muted = true;
+        effectVideo.play().then(() => {
+          effectVideo.classList.add('visible');
+          updateDebugHud();
+        }).catch(err2 => {
+          console.error('Ook gedempt afspelen mislukt:', err2);
+          notifyEffectError(effect.effect_id, 'Kan effectvideo niet afspelen: ' + err2.message);
+          returnToBackground();
+        });
+        return;
+      }
       notifyEffectError(effect.effect_id, 'Kan effectvideo niet afspelen: ' + err.message);
       returnToBackground();
       return;

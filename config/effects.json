@@ -46,7 +46,7 @@
       "file": "media/effects/jumpscare.mp4",
       "type": "fullscreen",
       "has_audio": true,
-      "duration": 6.0,
+      "duration": 20.0,
       "auto_return": true,
       "description": "Plotselinge explosieve schrikscène met hard angstaanjagend geluid.",
       "icon": "skull"
