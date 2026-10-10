@@ -109,6 +109,8 @@
   if (unlockOverlay) {
     unlockOverlay.addEventListener('click', unlockMedia);
   }
+  document.addEventListener('click', unlockMedia);
+  document.addEventListener('touchstart', unlockMedia);
 
   // Achtergrondvideo instellen en starten
   function setupBackground(bg) {
@@ -125,7 +127,7 @@
       }
       bgVideo.src = bg.web_url;
       bgVideo.loop = bg.loop !== false;
-      bgVideo.muted = bg.muted !== false;
+      bgVideo.muted = isMuted || (bg.muted === true);
       bgVideo.load();
 
       bgVideo.play().then(() => {
@@ -135,7 +137,6 @@
         }
       }).catch(err => {
         console.warn('Browser autoplay beleid blokkeert automatische start:', err);
-        // Toon unlock prompt zodat gebruiker eenmalig klikt
         if (!isMediaUnlocked && unlockOverlay) {
           unlockOverlay.classList.remove('hidden');
         }
@@ -168,6 +169,11 @@
     console.info('Start effect op projectiescherm:', effect);
     currentActiveEffect = effect;
 
+    // Verberg altijd direct het unlock overlay scherm
+    if (unlockOverlay) {
+      unlockOverlay.classList.add('hidden');
+    }
+
     // Annuleer lopende timers
     if (effectTimeoutTimer) {
       clearTimeout(effectTimeoutTimer);
@@ -180,6 +186,9 @@
 
     if (effect.type === 'fullscreen') {
       effectVideo.classList.add('mode-fullscreen');
+      // Verberg achtergrondvideo tijdelijk visueel en audio-matig voor maximaal jumpscare impact
+      bgVideo.style.opacity = '0';
+      bgVideo.muted = true;
     } else {
       effectVideo.classList.add('mode-overlay');
     }
@@ -216,7 +225,7 @@
       return;
     });
 
-    // Veiligheidstimer op basis van max duur
+    // Veiligheidstimer op basis van effectduur
     const durationMs = (effect.duration || 10) * 1000;
     effectTimeoutTimer = setTimeout(() => {
       console.info('Effectduur verstreken (fallback timer):', effect.effect_id);
@@ -231,6 +240,13 @@
     if (effectTimeoutTimer) {
       clearTimeout(effectTimeoutTimer);
       effectTimeoutTimer = null;
+    }
+
+    // Herstel achtergrondweergave
+    bgVideo.style.opacity = '1';
+    bgVideo.muted = isMuted || (backgroundConfig ? backgroundConfig.muted === true : false);
+    if (bgVideo.paused && bgVideo.src) {
+      bgVideo.play().catch(() => {});
     }
 
     if (currentActiveEffect) {
@@ -255,7 +271,7 @@
           }));
         }
         updateDebugHud();
-      }, 400);
+      }, 350);
     }
   }
 

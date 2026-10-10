@@ -341,8 +341,10 @@ async def websocket_endpoint(websocket: WebSocket):
             else:
                 if action == "trigger":
                     effect_id = data.get("effect_id")
+                    logger.info("Trigger commando ontvangen van controller voor: %s", effect_id)
                     success, reason, effect_payload = engine.trigger_effect(effect_id)
                     if success:
+                        logger.info("Effect %s gevalideerd, broadcasting naar beamers...", effect_id)
                         # Bevestiging aan controller
                         await manager.send_personal(websocket, {
                             "type": "trigger_ack",
@@ -362,7 +364,18 @@ async def websocket_endpoint(websocket: WebSocket):
                             "name": effect_payload["name"],
                             "duration": effect_payload["duration"],
                         })
+                        # Watchdog om vastlopen van state te voorkomen
+                        import asyncio
+                        async def _watchdog(eid: str, delay: float):
+                            await asyncio.sleep(delay)
+                            if engine.active_effect_id == eid:
+                                logger.warning("Watchdog: effect %s duur verstreken, forceren reset.", eid)
+                                engine.stop_effect()
+                                await manager.broadcast_to_screens({"type": "stop_effect"})
+                                await manager.broadcast_to_controllers({"type": "effect_stopped", "effect_id": eid})
+                        asyncio.create_task(_watchdog(effect_payload["effect_id"], effect_payload["duration"] + 1.5))
                     else:
+                        logger.warning("Trigger voor %s geweigerd: %s", effect_id, reason)
                         await manager.send_personal(websocket, {
                             "type": "trigger_ack",
                             "success": False,

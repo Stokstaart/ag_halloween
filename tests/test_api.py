@@ -53,8 +53,8 @@ async def test_api_trigger_unknown_effect():
 async def test_api_trigger_unconfigured_effect():
     """Test dat een effect zonder mediabestand geweigerd wordt."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        # ghost_attack heeft standaard nog geen echt bestand op schijf
-        resp = await client.post("/api/trigger", json={"effect_id": "ghost_attack"})
+        # zombie heeft geen bestand op schijf
+        resp = await client.post("/api/trigger", json={"effect_id": "zombie"})
         assert resp.status_code == 400
         assert "niet geconfigureerd" in resp.json()["detail"]
 
