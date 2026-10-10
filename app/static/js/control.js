@@ -113,6 +113,28 @@
     setConnectionStatus(ws && ws.readyState === WebSocket.OPEN, screensConnected);
   }
 
+  function updateEffectsButtons(effects) {
+    if (!effects || !Array.isArray(effects)) return;
+    effects.forEach(eff => {
+      const btn = document.querySelector(`.btn-effect[data-effect-id="${eff.id}"]`);
+      if (btn) {
+        if (eff.configured) {
+          btn.classList.remove('unconfigured');
+          const badge = btn.querySelector('.unconfigured-badge');
+          if (badge) badge.remove();
+        } else {
+          btn.classList.add('unconfigured');
+          if (!btn.querySelector('.unconfigured-badge')) {
+            const badge = document.createElement('span');
+            badge.className = 'unconfigured-badge';
+            badge.textContent = 'GEEN BESTAND';
+            btn.appendChild(badge);
+          }
+        }
+      }
+    });
+  }
+
   // Berichtafhandeling
   function handleMessage(data) {
     const type = data.type;
@@ -120,6 +142,9 @@
     if (type === 'init') {
       screensConnected = data.screen_count || 0;
       updateScreenStatus();
+      if (data.effects) {
+        updateEffectsButtons(data.effects);
+      }
       if (data.status) {
         if (data.status.volume !== undefined) setVolumeUI(data.status.volume);
         if (data.status.muted !== undefined) setMuteUI(data.status.muted);
@@ -302,5 +327,17 @@
   // Init
   window.addEventListener('DOMContentLoaded', () => {
     connectWebSocket();
+
+    // Periodieke controle om nieuwe effecten automatisch te activeren
+    setInterval(() => {
+      fetch('/api/effects' + (token ? '?token=' + encodeURIComponent(token) : ''))
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.effects) {
+            updateEffectsButtons(data.effects);
+          }
+        })
+        .catch(() => {});
+    }, 4000);
   });
 })();
