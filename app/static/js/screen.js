@@ -354,11 +354,15 @@
     }
   });
 
-  bgVideo.addEventListener('error', (e) => {
-    console.error('Fout bij laden van achtergrondvideo:', bgVideo.error, e);
-    if (noMediaNotice) {
-      noMediaNotice.innerHTML = '<h2>Achtergrondvideo Fout</h2><p>Controleer of het MP4-bestand geldig is en de H.264 codec gebruikt.</p>';
-      noMediaNotice.style.display = 'block';
+  [bgVideo1, bgVideo2].forEach((v) => {
+    if (v) {
+      v.addEventListener('error', (e) => {
+        console.error('Fout bij laden van achtergrondvideo:', v.error, e);
+        if (noMediaNotice) {
+          noMediaNotice.innerHTML = '<h2>Achtergrondvideo Fout</h2><p>Controleer of het MP4-bestand geldig is en de H.264 codec gebruikt.</p>';
+          noMediaNotice.style.display = 'block';
+        }
+      });
     }
   });
 
