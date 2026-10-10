@@ -7,7 +7,10 @@
   'use strict';
 
   // DOM elementen
-  const bgVideo = document.getElementById('bg-video');
+  const bgVideo1 = document.getElementById('bg-video-1') || document.getElementById('bg-video');
+  const bgVideo2 = document.getElementById('bg-video-2');
+  let activeBgVideo = bgVideo1;
+  let standbyBgVideo = bgVideo2;
   const effectVideo = document.getElementById('effect-video');
   const blackoutOverlay = document.getElementById('blackout-overlay');
   const unlockOverlay = document.getElementById('unlock-overlay');
@@ -89,10 +92,10 @@
     }
 
     // Start achtergrondvideo indien beschikbaar
-    if (bgVideo && bgVideo.src) {
-      bgVideo.muted = isMuted || (backgroundConfig ? backgroundConfig.muted === true : false);
-      bgVideo.volume = isMuted ? 0 : currentVolume;
-      bgVideo.play().catch(err => {
+    if (activeBgVideo && activeBgVideo.src) {
+      activeBgVideo.muted = isMuted || (backgroundConfig ? backgroundConfig.muted === true : false);
+      activeBgVideo.volume = isMuted ? 0 : currentVolume;
+      activeBgVideo.play().catch(err => {
         console.warn('Achtergrondvideo autoplay waarschuwing na unlock:', err);
       });
     }
@@ -112,7 +115,7 @@
   document.addEventListener('click', unlockMedia);
   document.addEventListener('touchstart', unlockMedia);
 
-  // Achtergrondvideo instellen en starten
+  // Achtergrondvideo instellen en naadloos wisselen
   function setupBackground(bg) {
     backgroundConfig = bg;
     if (bg && bg.file_exists && bg.web_url) {
@@ -121,26 +124,68 @@
         clearInterval(bgPollingTimer);
         bgPollingTimer = null;
       }
+
       // Voorkom onnodig herladen als dezelfde video al speelt
-      if (bgVideo.src && bgVideo.src.includes(bg.web_url) && !bgVideo.paused) {
+      if (activeBgVideo && activeBgVideo.src && activeBgVideo.src.includes(bg.web_url) && !activeBgVideo.paused) {
         return;
       }
-      bgVideo.src = bg.web_url;
-      bgVideo.loop = bg.loop !== false;
-      bgVideo.muted = isMuted || (bg.muted === true);
-      bgVideo.load();
 
-      bgVideo.play().then(() => {
-        bgVideo.classList.add('visible');
-        if (unlockOverlay && isMediaUnlocked) {
-          unlockOverlay.classList.add('hidden');
-        }
-      }).catch(err => {
-        console.warn('Browser autoplay beleid blokkeert automatische start:', err);
-        if (!isMediaUnlocked && unlockOverlay) {
-          unlockOverlay.classList.remove('hidden');
-        }
-      });
+      // Als er een standby-speler is en activeBgVideo speelt al: naadloze crossfade
+      if (standbyBgVideo && activeBgVideo && activeBgVideo.src) {
+        console.info('Naadloze achtergrond crossfade naar:', bg.web_url);
+        standbyBgVideo.src = bg.web_url;
+        standbyBgVideo.loop = bg.loop !== false;
+        standbyBgVideo.muted = isMuted || (bg.muted === true);
+        standbyBgVideo.volume = isMuted ? 0 : currentVolume;
+        standbyBgVideo.load();
+
+        standbyBgVideo.play().then(() => {
+          standbyBgVideo.classList.add('visible');
+          standbyBgVideo.classList.add('active-top');
+
+          setTimeout(() => {
+            activeBgVideo.classList.remove('visible');
+            activeBgVideo.classList.remove('active-top');
+            try { activeBgVideo.pause(); } catch (e) {}
+
+            // Verwissel active en standby spelers
+            const temp = activeBgVideo;
+            activeBgVideo = standbyBgVideo;
+            standbyBgVideo = temp;
+
+            if (unlockOverlay && isMediaUnlocked) {
+              unlockOverlay.classList.add('hidden');
+            }
+          }, 850);
+        }).catch(err => {
+          console.warn('Standby video play mislukt, directe fallback switch:', err);
+          activeBgVideo.src = bg.web_url;
+          activeBgVideo.load();
+          activeBgVideo.play().catch(() => {});
+        });
+        return;
+      }
+
+      // Eerste start
+      if (activeBgVideo) {
+        activeBgVideo.src = bg.web_url;
+        activeBgVideo.loop = bg.loop !== false;
+        activeBgVideo.muted = isMuted || (bg.muted === true);
+        activeBgVideo.volume = isMuted ? 0 : currentVolume;
+        activeBgVideo.load();
+
+        activeBgVideo.play().then(() => {
+          activeBgVideo.classList.add('visible');
+          if (unlockOverlay && isMediaUnlocked) {
+            unlockOverlay.classList.add('hidden');
+          }
+        }).catch(err => {
+          console.warn('Browser autoplay beleid blokkeert automatische start:', err);
+          if (!isMediaUnlocked && unlockOverlay) {
+            unlockOverlay.classList.remove('hidden');
+          }
+        });
+      }
     } else {
       console.warn('Geen achtergrondvideo aanwezig in media/background/. Start periodieke check...');
       if (noMediaNotice) noMediaNotice.style.display = 'block';
@@ -164,32 +209,27 @@
     }, 4000);
   }
 
-  // Effect afspelen
+  // Effect afspelen met gegarandeerd vloeiende overgang zonder zwarte flits
   function playEffect(effect) {
     console.info('Start effect op projectiescherm:', effect);
     currentActiveEffect = effect;
 
-    // Verberg altijd direct het unlock overlay scherm
     if (unlockOverlay) {
       unlockOverlay.classList.add('hidden');
     }
 
-    // Annuleer lopende timers
     if (effectTimeoutTimer) {
       clearTimeout(effectTimeoutTimer);
       effectTimeoutTimer = null;
     }
 
-    // Reset effect video
+    // Reset weergavemodus
     effectVideo.pause();
     effectVideo.className = 'video-layer';
 
     const mode = effect.display_mode || effect.type;
     if (mode === 'fullscreen') {
       effectVideo.classList.add('mode-fullscreen');
-      // Verberg achtergrondvideo tijdelijk visueel en audio-matig voor maximaal jumpscare impact
-      bgVideo.style.opacity = '0';
-      bgVideo.muted = true;
     } else {
       effectVideo.classList.add('mode-overlay');
     }
@@ -198,23 +238,36 @@
     effectVideo.volume = isMuted ? 0 : (effect.has_audio ? currentVolume : 0);
     effectVideo.muted = isMuted || !effect.has_audio;
 
+    // Pas de achtergrond verbergen zodra het effectframe DAADWERKELIJK rendert (elimineert de zwarte hapering!)
+    let frameRendered = false;
+    const onFrameReady = () => {
+      if (frameRendered) return;
+      frameRendered = true;
+      effectVideo.removeEventListener('playing', onFrameReady);
+      effectVideo.removeEventListener('timeupdate', onFrameReady);
+
+      effectVideo.classList.add('visible');
+      if (mode === 'fullscreen' && activeBgVideo) {
+        activeBgVideo.style.opacity = '0';
+        activeBgVideo.muted = true;
+      }
+      updateDebugHud();
+    };
+
+    effectVideo.addEventListener('playing', onFrameReady);
+    effectVideo.addEventListener('timeupdate', onFrameReady);
+
     // Laad bron
     effectVideo.src = effect.web_url;
     effectVideo.load();
 
     effectVideo.play().then(() => {
-      effectVideo.classList.add('visible');
-      updateDebugHud();
+      setTimeout(onFrameReady, 50);
     }).catch(err => {
       console.warn('Fout bij afspelen van effectvideo:', err);
-      // Als de browser autoplay met geluid blokkeert, speel dan af met dempen als fallback
       if (err.name === 'NotAllowedError') {
-        console.warn('Browser autoplay beleid blokkeert audio. Speelt gedempt af als fallback...');
         effectVideo.muted = true;
-        effectVideo.play().then(() => {
-          effectVideo.classList.add('visible');
-          updateDebugHud();
-        }).catch(err2 => {
+        effectVideo.play().then(onFrameReady).catch(err2 => {
           console.error('Ook gedempt afspelen mislukt:', err2);
           notifyEffectError(effect.effect_id, 'Kan effectvideo niet afspelen: ' + err2.message);
           returnToBackground();
@@ -223,38 +276,39 @@
       }
       notifyEffectError(effect.effect_id, 'Kan effectvideo niet afspelen: ' + err.message);
       returnToBackground();
-      return;
     });
 
-    // Veiligheidstimer op basis van effectduur
-    const durationMs = (effect.duration || 10) * 1000;
+    const durationMs = (effect.duration || 15) * 1000;
     effectTimeoutTimer = setTimeout(() => {
-      console.info('Effectduur verstreken (fallback timer):', effect.effect_id);
+      console.info('Effectduur verstreken:', effect.effect_id);
       returnToBackground();
     }, durationMs + 500);
 
     updateDebugHud();
   }
 
-  // Terugkeren naar de achtergrond
+  // Vloeiend terugkeren naar de achtergrond
   function returnToBackground() {
     if (effectTimeoutTimer) {
       clearTimeout(effectTimeoutTimer);
       effectTimeoutTimer = null;
     }
 
-    // Herstel achtergrondweergave
-    bgVideo.style.opacity = '1';
-    bgVideo.muted = isMuted || (backgroundConfig ? backgroundConfig.muted === true : false);
-    if (bgVideo.paused && bgVideo.src) {
-      bgVideo.play().catch(() => {});
+    // Herstel achtergrondweergave vóór fade-out effectvideo
+    if (activeBgVideo) {
+      activeBgVideo.style.opacity = '1';
+      activeBgVideo.muted = isMuted || (backgroundConfig ? backgroundConfig.muted === true : false);
+      activeBgVideo.volume = isMuted ? 0 : currentVolume;
+      if (activeBgVideo.paused && activeBgVideo.src) {
+        activeBgVideo.play().catch(() => {});
+      }
     }
 
     if (currentActiveEffect) {
       const finishedId = currentActiveEffect.effect_id;
       currentActiveEffect = null;
 
-      // Fade-out effect
+      // Vloeiende fade-out effectvideo
       effectVideo.classList.remove('visible');
 
       setTimeout(() => {
@@ -264,7 +318,6 @@
           effectVideo.load();
         } catch (e) {}
 
-        // Meld voltooiing aan backend
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             action: 'effect_ended',
@@ -380,9 +433,13 @@
     } else if (type === 'volume_update') {
       currentVolume = data.volume !== undefined ? data.volume : currentVolume;
       isMuted = !!data.muted;
-      if (bgVideo) {
-        bgVideo.volume = isMuted ? 0 : currentVolume;
-        bgVideo.muted = isMuted || (backgroundConfig ? backgroundConfig.muted === true : false);
+      if (activeBgVideo) {
+        activeBgVideo.volume = isMuted ? 0 : currentVolume;
+        activeBgVideo.muted = isMuted || (backgroundConfig ? backgroundConfig.muted === true : false);
+      }
+      if (standbyBgVideo) {
+        standbyBgVideo.volume = isMuted ? 0 : currentVolume;
+        standbyBgVideo.muted = isMuted || (backgroundConfig ? backgroundConfig.muted === true : false);
       }
       if (effectVideo) {
         effectVideo.volume = isMuted ? 0 : currentVolume;

@@ -322,6 +322,60 @@ h1 {
   margin-bottom: 0.85rem;
 }
 
+/* Background Switcher Card */
+.bg-switcher-card {
+  margin-bottom: 1rem;
+}
+
+.bg-selector-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.bg-select {
+  flex: 1;
+  background: #1f1124;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.95rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.bg-select:focus {
+  border-color: var(--orange);
+}
+
+.btn-change-bg {
+  background: linear-gradient(180deg, #ff7518 0%, #d85c07 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.1s;
+}
+
+.btn-change-bg:active {
+  transform: scale(0.96);
+}
+
+.bg-active-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.bg-active-hint strong {
+  color: var(--orange);
+}
+
 .volume-row {
   display: flex;
   align-items: center;

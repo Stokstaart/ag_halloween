@@ -105,6 +105,11 @@ class DisableRequest(BaseModel):
     disabled: bool = Field(..., description="Effecten tijdelijk uitschakelen")
 
 
+class BackgroundRequest(BaseModel):
+    file: Optional[str] = Field(None, description="Bestandsnaam of pad van de achtergrondvideo")
+    filename: Optional[str] = Field(None, description="Alternatieve bestandsnaam")
+
+
 # ==========================================
 # HTML Views
 # ==========================================
@@ -194,8 +199,45 @@ async def api_effects(authenticated: bool = Depends(verify_token)):
     """Haalt de actuele lijst van effecten en achtergrondconfiguratie op."""
     return {
         "background": engine.get_background(),
+        "backgrounds": engine.get_background_list(),
         "effects": engine.get_effects_list(),
     }
+
+
+@app.get("/api/backgrounds")
+async def api_backgrounds(authenticated: bool = Depends(verify_token)):
+    """Haalt alle beschikbare achtergrondvideo's op."""
+    return {
+        "current": engine.get_background(),
+        "backgrounds": engine.get_background_list(),
+    }
+
+
+@app.post("/api/background")
+async def api_set_background(payload: BackgroundRequest, authenticated: bool = Depends(verify_token)):
+    """Wisselt de actieve achtergrondvideo."""
+    target = payload.file or payload.filename
+    if not target:
+        raise HTTPException(status_code=400, detail="Geen bestandsnaam opgegeven.")
+
+    success, msg, bg = engine.set_background(target)
+    if not success:
+        raise HTTPException(status_code=400, detail=msg)
+
+    # Broadcast naar alle schermen
+    await manager.broadcast_to_screens({
+        "type": "background_update",
+        "background": bg,
+    })
+
+    # Broadcast naar controllers
+    await manager.broadcast_to_controllers({
+        "type": "background_selected",
+        "background": bg,
+        "backgrounds": engine.get_background_list(),
+    })
+
+    return {"success": True, "message": msg, "background": bg}
 
 
 @app.post("/api/trigger")
@@ -292,6 +334,8 @@ async def websocket_endpoint(websocket: WebSocket):
             "type": "init",
             "status": engine.get_status(),
             "effects": engine.get_effects_list(),
+            "background": engine.get_background(),
+            "backgrounds": engine.get_background_list(),
             "screen_count": len(manager.screen_connections),
         })
 
@@ -442,6 +486,33 @@ async def websocket_endpoint(websocket: WebSocket):
                         "type": "disabled_update",
                         "disabled": engine.disabled,
                     })
+
+                elif action in ("set_background", "change_background"):
+                    target = data.get("file") or data.get("filename") or data.get("background")
+                    if target:
+                        success, reason, bg = engine.set_background(target)
+                        if success:
+                            await manager.broadcast_to_screens({
+                                "type": "background_update",
+                                "background": bg,
+                            })
+                            await manager.broadcast_to_controllers({
+                                "type": "background_selected",
+                                "background": bg,
+                                "backgrounds": engine.get_background_list(),
+                            })
+                            await manager.send_personal(websocket, {
+                                "type": "background_ack",
+                                "success": True,
+                                "message": reason,
+                                "background": bg,
+                            })
+                        else:
+                            await manager.send_personal(websocket, {
+                                "type": "background_ack",
+                                "success": False,
+                                "reason": reason,
+                            })
 
                 elif action == "ping":
                     await manager.send_personal(websocket, {"type": "pong"})

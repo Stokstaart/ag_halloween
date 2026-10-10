@@ -126,3 +126,39 @@ def test_disable_toggle(temp_env):
     success, reason, _ = engine.trigger_effect("ghost_attack")
     assert success is False
     assert "uitgeschakeld" in reason
+
+
+def test_dynamic_effects_discovery(temp_env):
+    """Test dat ongeconfigureerde videobestanden in media/effects/ dynamisch ontdekt worden."""
+    engine, media_dir, _ = temp_env
+    effects_dir = media_dir / "effects"
+    
+    # Maak nieuw videobestand aan dat niet in effects.json staat
+    extra_video = effects_dir / "scare_clown.mp4"
+    extra_video.write_bytes(b"\x00" * 1024)
+
+    effects = engine.get_effects_list()
+    clown = next((e for e in effects if e["id"] == "scare_clown"), None)
+    assert clown is not None
+    assert clown["is_custom"] is True
+    assert clown["configured"] is True
+    assert clown["file_exists"] is True
+    assert clown["icon"] == "skull"
+    assert "Scare Clown" in clown["name"]
+
+
+def test_background_switching(temp_env):
+    """Test dat achtergronden gewisseld kunnen worden."""
+    engine, media_dir, _ = temp_env
+    bg_dir = media_dir / "background"
+
+    bg2 = bg_dir / "fog_loop.mp4"
+    bg2.write_bytes(b"\x00" * 1024)
+
+    bg_list = engine.get_background_list()
+    assert len(bg_list) >= 2
+
+    success, msg, bg = engine.set_background("fog_loop.mp4")
+    assert success is True
+    assert "fog_loop.mp4" in bg["file"]
+

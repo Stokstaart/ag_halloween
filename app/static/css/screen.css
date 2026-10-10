@@ -39,22 +39,26 @@ body.show-cursor {
   pointer-events: none;
 }
 
-/* Achtergrondlaag */
-#bg-video {
+/* Achtergrondlagen (dual voor naadloze crossfades) */
+.bg-layer, #bg-video {
   z-index: 10;
   opacity: 0;
-  transition: opacity 1s ease-in-out;
+  transition: opacity 0.8s ease-in-out;
 }
 
-#bg-video.visible {
+.bg-layer.visible, #bg-video.visible {
   opacity: 1;
+}
+
+.bg-layer.active-top {
+  z-index: 12;
 }
 
 /* Effectlaag */
 #effect-video {
   z-index: 20;
   opacity: 0;
-  transition: opacity 0.35s ease-in-out;
+  transition: opacity 0.3s ease-in-out;
 }
 
 #effect-video.visible {

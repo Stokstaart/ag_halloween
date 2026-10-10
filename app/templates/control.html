@@ -47,20 +47,34 @@
       ⏳ Cooldown actief: nog <span id="cooldown-remaining">0.0s</span>
     </div>
 
+    <!-- Achtergrond Keuze & Wisselaar -->
+    <div class="controls-card bg-switcher-card">
+      <div class="controls-card-title">🎬 Projectie Achtergrond</div>
+      <div class="bg-selector-row">
+        <select id="bg-select" class="bg-select" aria-label="Selecteer achtergrondvideo">
+          <option value="" disabled selected>Laden...</option>
+        </select>
+        <button id="btn-change-bg" class="btn-change-bg" type="button">Wissel</button>
+      </div>
+      <div class="bg-active-hint">Huidige loop: <strong id="bg-active-name">{{ background.name or 'Achtergrond' }}</strong></div>
+    </div>
+
     <!-- 7. Return to Background / Noodstop Knop -->
     <button id="btn-emergency" class="btn-emergency" type="button">
       <span>🛑</span>
       <span>Return to Background (Noodstop)</span>
     </button>
 
-    <!-- Effecten Raster (Knoppen 1 t/m 6) -->
-    <div class="effects-grid">
+    <!-- Effecten Raster (Knoppen) -->
+    <div class="effects-grid" id="effects-grid">
       {% for effect in effects %}
-        {% set icon_char = '👻' %}
-        {% if effect.icon == 'biohazard' or effect.id == 'zombie' %}{% set icon_char = '🧟' %}
-        {% elif effect.icon == 'eye' or effect.id == 'creepy_eyes' %}{% set icon_char = '👁️' %}
-        {% elif effect.icon == 'skull' or effect.id == 'jumpscare' %}{% set icon_char = '💀' %}
-        {% elif effect.icon == 'claw' or effect.id == 'window_scratcher' %}{% set icon_char = '🐾' %}
+        {% set icon_char = '🎃' %}
+        {% if effect.icon == 'skull' or 'scare' in effect.id or effect.id == 'jumpscare' %}{% set icon_char = '💀' %}
+        {% elif effect.icon == 'ghost' or 'ghost' in effect.id %}{% set icon_char = '👻' %}
+        {% elif effect.icon == 'biohazard' or effect.icon == 'zombie' or 'zombie' in effect.id %}{% set icon_char = '🧟' %}
+        {% elif effect.icon == 'eye' or effect.icon == 'eyes' or 'eyes' in effect.id %}{% set icon_char = '👁️' %}
+        {% elif effect.icon == 'claw' or effect.icon == 'scratch' or 'scratch' in effect.id %}{% set icon_char = '🐾' %}
+        {% elif effect.icon == 'spider' or 'spider' in effect.id %}{% set icon_char = '🕷️' %}
         {% endif %}
 
         <button

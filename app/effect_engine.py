@@ -28,6 +28,7 @@ class EffectEngine:
         self.effects: Dict[str, Dict[str, Any]] = {}
 
         # Runtime status
+        self.active_background_file: Optional[str] = None
         self.active_effect_id: Optional[str] = None
         self.active_effect_started_at: Optional[float] = None
         self.last_effect_ended_at: float = 0.0
@@ -106,11 +107,27 @@ class EffectEngine:
     def get_background(self) -> Dict[str, Any]:
         """Geeft de actuele achtergrondconfiguratie inclusief bestandsstatus."""
         self.load_configuration()
+
+        # 1. Handmatig geselecteerde achtergrond
+        if self.active_background_file:
+            exists, web_url = self._check_file_exists(self.active_background_file)
+            if exists:
+                name = Path(self.active_background_file).stem.replace("_", " ").replace("-", " ")
+                return {
+                    "file": self.active_background_file,
+                    "name": name,
+                    "web_url": web_url,
+                    "file_exists": True,
+                    "description": name,
+                    "loop": True,
+                    "muted": True,
+                }
+
+        # 2. Geconfigureerd achtergrondbestand uit effects.json
         file_path = self.background_config.get("file", "")
         exists, web_url = self._check_file_exists(file_path)
 
-        # Automatische fallback: als geconfigureerd bestand ontbreekt,
-        # zoek naar een geldig videobestand in media/background/
+        # 3. Automatische fallback: eerste geldig videobestand in media/background/
         if not exists:
             bg_dir = self.media_dir / "background"
             if bg_dir.is_dir():
@@ -124,14 +141,57 @@ class EffectEngine:
                     exists, web_url = self._check_file_exists(file_path)
                     logger.info("Achtergrond automatisch gedetecteerd: %s", file_path)
 
+        name = Path(file_path).stem.replace("_", " ").replace("-", " ") if file_path else "Geen achtergrond"
         return {
             "file": file_path,
+            "name": name,
             "web_url": web_url,
             "file_exists": exists,
-            "description": self.background_config.get("description", ""),
+            "description": self.background_config.get("description", name),
             "loop": self.background_config.get("loop", True),
             "muted": self.background_config.get("muted", True),
         }
+
+    def get_background_list(self) -> List[Dict[str, Any]]:
+        """Scant media/background/ naar alle beschikbare achtergrondvideo's."""
+        self.load_configuration()
+        bg_dir = self.media_dir / "background"
+        current_bg = self.get_background()
+        current_file = current_bg.get("file", "")
+
+        results = []
+        if bg_dir.is_dir():
+            for f in sorted(bg_dir.iterdir()):
+                if f.is_file() and f.suffix.lower() in ALLOWED_MEDIA_EXTENSIONS and f.stat().st_size > 0:
+                    rel_path = f"media/background/{f.name}"
+                    _, web_url = self._check_file_exists(rel_path)
+                    name = f.stem.replace("_", " ").replace("-", " ")
+                    results.append({
+                        "id": f.stem,
+                        "filename": f.name,
+                        "name": name,
+                        "file": rel_path,
+                        "web_url": web_url,
+                        "is_active": (rel_path == current_file or f.name in current_file),
+                    })
+        return results
+
+    def set_background(self, target: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        """Wisselt de actieve achtergrondvideo."""
+        if not target:
+            return False, "Geen bestand opgegeven.", None
+
+        bg_dir = self.media_dir / "background"
+        clean_name = Path(target).name
+        target_file = bg_dir / clean_name
+
+        if not target_file.is_file() or target_file.stat().st_size == 0:
+            return False, f"Achtergrondbestand '{clean_name}' niet gevonden in media/background/.", None
+
+        rel_path = f"media/background/{clean_name}"
+        self.active_background_file = rel_path
+        logger.info("Achtergrond handmatig gewijzigd naar: %s", rel_path)
+        return True, f"Achtergrond gewijzigd naar '{clean_name}'", self.get_background()
 
     def _resolve_effect_file(self, item: Dict[str, Any]) -> Tuple[str, bool, Optional[str]]:
         """Zoekt het mediabestand voor een effect, inclusief automatische trefwoord-matching."""
@@ -147,7 +207,7 @@ class EffectEngine:
             if effect_id == "ghost_attack": keywords.extend(["ghost", "spook", "geest"])
             elif effect_id == "zombie": keywords.extend(["zombie", "undead"])
             elif effect_id == "creepy_eyes": keywords.extend(["eyes", "ogen", "creepy"])
-            elif effect_id == "jumpscare": keywords.extend(["jump", "scare", "schrik", "monster"])
+            elif effect_id == "jumpscare": keywords.extend(["jump", "scare1", "jumpscare"])
             elif effect_id == "window_scratcher": keywords.extend(["scratch", "kras", "claw", "klauw"])
 
             candidates = [
@@ -171,8 +231,78 @@ class EffectEngine:
 
         return file_path, False, None
 
+    def _get_dynamic_effects(self) -> List[Dict[str, Any]]:
+        """Detecteert extra effect-bestanden in media/effects/ die niet onder de standaardknoppen vallen."""
+        effects_dir = self.media_dir / "effects"
+        if not effects_dir.is_dir():
+            return []
+
+        import re
+        claimed_filenames = set()
+        for item in self.effects.values():
+            fp, exists, _ = self._resolve_effect_file(item)
+            if exists:
+                claimed_filenames.add(Path(fp).name.lower())
+
+        dynamic_list = []
+        for f in sorted(effects_dir.iterdir()):
+            if (f.is_file() and 
+                f.suffix.lower() in ALLOWED_MEDIA_EXTENSIONS and 
+                f.stat().st_size > 0 and 
+                not f.name.endswith(".dwsupload") and 
+                not f.name.endswith(".part") and
+                not f.name.endswith(".tmp") and
+                not f.stem.lower().startswith("achtergrond") and
+                not f.stem.lower().startswith("background")):
+
+                if f.name.lower() in claimed_filenames:
+                    continue
+
+                stem = f.stem
+                effect_id = re.sub(r'[^a-zA-Z0-9_]', '_', stem).lower()
+                if effect_id in self.effects:
+                    effect_id = f"custom_{effect_id}"
+
+                rel_path = f"media/effects/{f.name}"
+                _, web_url = self._check_file_exists(rel_path)
+
+                name_lower = stem.lower()
+                if any(k in name_lower for k in ["scare", "jump", "schrik", "skull"]):
+                    icon = "skull"
+                elif any(k in name_lower for k in ["ghost", "spook", "geest"]):
+                    icon = "ghost"
+                elif any(k in name_lower for k in ["eye", "oog", "ogen"]):
+                    icon = "eyes"
+                elif any(k in name_lower for k in ["zombie", "dead"]):
+                    icon = "zombie"
+                elif any(k in name_lower for k in ["spider", "spin"]):
+                    icon = "spider"
+                elif any(k in name_lower for k in ["scratch", "kras", "claw"]):
+                    icon = "scratch"
+                else:
+                    icon = "pumpkin"
+
+                display_name = stem.replace("_", " ").replace("-", " ").title()
+                dynamic_list.append({
+                    "id": effect_id,
+                    "name": display_name,
+                    "file": rel_path,
+                    "web_url": web_url,
+                    "file_exists": True,
+                    "configured": True,
+                    "type": "fullscreen",
+                    "has_audio": True,
+                    "duration": 15.0,
+                    "auto_return": True,
+                    "description": f"Ontdekt effect ({f.name})",
+                    "icon": icon,
+                    "is_custom": True,
+                })
+
+        return dynamic_list
+
     def get_effects_list(self) -> List[Dict[str, Any]]:
-        """Geeft alle effecten terug met hun configuratiestatus."""
+        """Geeft alle effecten terug met hun configuratiestatus, inclusief dynamische effecten."""
         self.load_configuration()
         result = []
         for effect_id, item in self.effects.items():
@@ -184,38 +314,50 @@ class EffectEngine:
                 "file": file_path,
                 "web_url": web_url,
                 "file_exists": exists,
-                "configured": exists,  # Alleen geconfigureerd als het bestand daadwerkelijk bestaat
-                "type": item.get("type", "overlay"),  # overlay | fullscreen
+                "configured": exists,
+                "type": item.get("type", "overlay"),
                 "has_audio": bool(item.get("has_audio", True)),
                 "duration": duration,
                 "auto_return": bool(item.get("auto_return", True)),
                 "description": item.get("description", ""),
                 "icon": item.get("icon", "ghost"),
+                "is_custom": False,
             })
+
+        # Voeg dynamische effecten toe
+        dynamic_effects = self._get_dynamic_effects()
+        result.extend(dynamic_effects)
         return result
 
     def get_effect(self, effect_id: str) -> Optional[Dict[str, Any]]:
         """Haalt een specifiek effect op met actuele status."""
         self.load_configuration()
         item = self.effects.get(effect_id)
-        if not item:
-            return None
-        file_path, exists, web_url = self._resolve_effect_file(item)
-        duration = min(float(item.get("duration", 10.0)), MAX_EFFECT_DURATION_SECONDS)
-        return {
-            "id": effect_id,
-            "name": item.get("name", effect_id),
-            "file": file_path,
-            "web_url": web_url,
-            "file_exists": exists,
-            "configured": exists,
-            "type": item.get("type", "overlay"),
-            "has_audio": bool(item.get("has_audio", True)),
-            "duration": duration,
-            "auto_return": bool(item.get("auto_return", True)),
-            "description": item.get("description", ""),
-            "icon": item.get("icon", "ghost"),
-        }
+        if item:
+            file_path, exists, web_url = self._resolve_effect_file(item)
+            duration = min(float(item.get("duration", 10.0)), MAX_EFFECT_DURATION_SECONDS)
+            return {
+                "id": effect_id,
+                "name": item.get("name", effect_id),
+                "file": file_path,
+                "web_url": web_url,
+                "file_exists": exists,
+                "configured": exists,
+                "type": item.get("type", "overlay"),
+                "has_audio": bool(item.get("has_audio", True)),
+                "duration": duration,
+                "auto_return": bool(item.get("auto_return", True)),
+                "description": item.get("description", ""),
+                "icon": item.get("icon", "ghost"),
+                "is_custom": False,
+            }
+
+        # Zoek in dynamische effecten
+        for dyn in self._get_dynamic_effects():
+            if dyn["id"] == effect_id:
+                return dyn
+
+        return None
 
     def get_cooldown_remaining(self) -> float:
         """Berekent de resterende cooldowntijd in seconden."""

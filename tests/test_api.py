@@ -87,3 +87,23 @@ async def test_api_disable():
         resp = await client.post("/api/disable", json={"disabled": True})
         assert resp.status_code == 200
         assert resp.json()["disabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_api_backgrounds():
+    """Test /api/backgrounds en wisselen van achtergrond via /api/background."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Ophalen
+        resp = await client.get("/api/backgrounds")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "backgrounds" in data
+        assert "current" in data
+
+        if data["backgrounds"]:
+            target = data["backgrounds"][0]["filename"]
+            resp_post = await client.post("/api/background", json={"file": target})
+            assert resp_post.status_code == 200
+            post_data = resp_post.json()
+            assert post_data["success"] is True
+            assert target in post_data["background"]["file"]

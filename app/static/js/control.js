@@ -30,6 +30,12 @@
   const toggleDisabled = document.getElementById('toggle-disabled');
   const btnEmergency = document.getElementById('btn-emergency');
   const toastContainer = document.getElementById('toast-container');
+  const bgSelect = document.getElementById('bg-select');
+  const btnChangeBg = document.getElementById('btn-change-bg');
+  const bgActiveName = document.getElementById('bg-active-name');
+  const effectsGrid = document.getElementById('effects-grid');
+
+  let cachedBackgrounds = [];
 
   // Token uit query params
   const urlParams = new URLSearchParams(window.location.search);
@@ -113,10 +119,68 @@
     setConnectionStatus(ws && ws.readyState === WebSocket.OPEN, screensConnected);
   }
 
-  function updateEffectsButtons(effects) {
+  // Achtergronden dropdown bijwerken
+  function renderBackgrounds(backgrounds, currentBg) {
+    if (!bgSelect) return;
+    if (Array.isArray(backgrounds)) {
+      cachedBackgrounds = backgrounds;
+      bgSelect.innerHTML = '';
+      backgrounds.forEach(bg => {
+        const opt = document.createElement('option');
+        opt.value = bg.filename || bg.file;
+        opt.textContent = bg.name || bg.filename;
+        if (bg.is_active || (currentBg && (currentBg.file === bg.file || (currentBg.file && currentBg.file.includes(bg.filename))))) {
+          opt.selected = true;
+        }
+        bgSelect.appendChild(opt);
+      });
+    }
+
+    if (currentBg && bgActiveName) {
+      bgActiveName.textContent = currentBg.name || currentBg.file || 'Achtergrond';
+    }
+  }
+
+  // Dynamische effectknoppen genereren en bijwerken
+  function renderEffects(effects) {
     if (!effects || !Array.isArray(effects)) return;
+    const grid = effectsGrid || document.querySelector('.effects-grid');
+    const randomBtn = document.querySelector('.btn-effect.btn-random');
+
     effects.forEach(eff => {
-      const btn = document.querySelector(`.btn-effect[data-effect-id="${eff.id}"]`);
+      let btn = document.querySelector(`.btn-effect[data-effect-id="${eff.id}"]`);
+      if (!btn && grid) {
+        // Maak dynamische knop aan voor nieuw gevonden jumpscare
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-effect';
+        btn.dataset.effectId = eff.id;
+        btn.title = eff.description || eff.name;
+
+        let iconChar = '🎃';
+        const idLower = (eff.id || '').toLowerCase();
+        if (eff.icon === 'skull' || idLower.includes('scare') || idLower.includes('jump')) iconChar = '💀';
+        else if (eff.icon === 'ghost' || idLower.includes('ghost')) iconChar = '👻';
+        else if (eff.icon === 'zombie' || idLower.includes('zombie')) iconChar = '🧟';
+        else if (eff.icon === 'eyes' || idLower.includes('eye')) iconChar = '👁️';
+        else if (eff.icon === 'scratch' || idLower.includes('scratch') || idLower.includes('claw')) iconChar = '🐾';
+        else if (eff.icon === 'spider' || idLower.includes('spider')) iconChar = '🕷️';
+
+        btn.innerHTML = `
+          <span class="effect-icon">${iconChar}</span>
+          <span class="effect-name">${eff.name}</span>
+          <span class="effect-meta">${(eff.type || 'Fullscreen').toUpperCase()} • ${Math.round(eff.duration || 15)}s</span>
+        `;
+
+        btn.addEventListener('click', () => handleEffectClick(btn));
+
+        if (randomBtn) {
+          grid.insertBefore(btn, randomBtn);
+        } else {
+          grid.appendChild(btn);
+        }
+      }
+
       if (btn) {
         if (eff.configured) {
           btn.classList.remove('unconfigured');
@@ -142,8 +206,11 @@
     if (type === 'init') {
       screensConnected = data.screen_count || 0;
       updateScreenStatus();
+      if (data.backgrounds) {
+        renderBackgrounds(data.backgrounds, data.background);
+      }
       if (data.effects) {
-        updateEffectsButtons(data.effects);
+        renderEffects(data.effects);
       }
       if (data.status) {
         if (data.status.volume !== undefined) setVolumeUI(data.status.volume);
@@ -156,6 +223,19 @@
     } else if (type === 'connection_stats') {
       screensConnected = data.screen_count || 0;
       updateScreenStatus();
+    } else if (type === 'background_selected' || type === 'background_update') {
+      if (data.backgrounds) {
+        renderBackgrounds(data.backgrounds, data.background);
+      } else if (data.background) {
+        renderBackgrounds(cachedBackgrounds, data.background);
+      }
+      if (type === 'background_selected' && data.background) {
+        showToast(`Achtergrond ingesteld: ${data.background.name || data.background.file}`);
+      }
+    } else if (type === 'background_ack') {
+      if (!data.success) {
+        showToast(data.reason || 'Kan achtergrond niet wisselen.', true);
+      }
     } else if (type === 'trigger_ack') {
       if (data.success) {
         vibrate(50);
@@ -258,34 +338,37 @@
     ws.send(JSON.stringify({ action, ...payload }));
   }
 
+  // Klikafhandeling voor effectknoppen
+  function handleEffectClick(btn) {
+    vibrate(25);
+    const isUnconfigured = btn.classList.contains('unconfigured');
+    const effectId = btn.dataset.effectId;
+    const isRandom = btn.dataset.action === 'random';
+
+    if (isUnconfigured) {
+      showToast(`Effect '${btn.querySelector('.effect-name')?.textContent || effectId}' is nog niet geconfigureerd: mediabestand ontbreekt in media/effects/.`, true);
+      return;
+    }
+
+    if (effectsDisabled) {
+      showToast('Effecten zijn momenteel uitgeschakeld via de schakelaar hieronder.', true);
+      return;
+    }
+
+    if (screensConnected === 0) {
+      showToast('Waarschuwing: er is momenteel geen beamer verbonden met /screen.', true);
+    }
+
+    if (isRandom) {
+      sendCommand('trigger_random');
+    } else if (effectId) {
+      sendCommand('trigger', { effect_id: effectId });
+    }
+  }
+
   // Event Listeners voor Knoppen
   document.querySelectorAll('.btn-effect').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      vibrate(25);
-      const isUnconfigured = btn.classList.contains('unconfigured');
-      const effectId = btn.dataset.effectId;
-      const isRandom = btn.dataset.action === 'random';
-
-      if (isUnconfigured) {
-        showToast(`Effect '${btn.querySelector('.effect-name').textContent}' is nog niet geconfigureerd: mediabestand ontbreekt in media/effects/.`, true);
-        return;
-      }
-
-      if (effectsDisabled) {
-        showToast('Effecten zijn momenteel uitgeschakeld via de schakelaar hieronder.', true);
-        return;
-      }
-
-      if (screensConnected === 0) {
-        showToast('Waarschuwing: er is momenteel geen beamer verbonden met /screen.', true);
-      }
-
-      if (isRandom) {
-        sendCommand('trigger_random');
-      } else if (effectId) {
-        sendCommand('trigger', { effect_id: effectId });
-      }
-    });
+    btn.addEventListener('click', () => handleEffectClick(btn));
   });
 
   // Emergency Stop / Return to Background
@@ -294,6 +377,27 @@
       vibrate([50, 50]);
       sendCommand('stop');
       showToast('Noodstop: Teruggekeerd naar achtergrondvideo.');
+    });
+  }
+
+  // Achtergrond wisselen knop & select
+  if (btnChangeBg && bgSelect) {
+    btnChangeBg.addEventListener('click', () => {
+      const selected = bgSelect.value;
+      if (selected) {
+        vibrate(30);
+        sendCommand('set_background', { file: selected });
+      }
+    });
+  }
+
+  if (bgSelect) {
+    bgSelect.addEventListener('change', () => {
+      const selected = bgSelect.value;
+      if (selected) {
+        vibrate(30);
+        sendCommand('set_background', { file: selected });
+      }
     });
   }
 
@@ -328,13 +432,25 @@
   window.addEventListener('DOMContentLoaded', () => {
     connectWebSocket();
 
-    // Periodieke controle om nieuwe effecten automatisch te activeren
+    // Haal initiële achtergronden en effecten direct op
+    fetch('/api/effects' + (token ? '?token=' + encodeURIComponent(token) : ''))
+      .then(res => res.json())
+      .then(data => {
+        if (data) {
+          if (data.backgrounds) renderBackgrounds(data.backgrounds, data.background);
+          if (data.effects) renderEffects(data.effects);
+        }
+      })
+      .catch(() => {});
+
+    // Periodieke controle om nieuwe effecten & achtergronden automatisch te activeren
     setInterval(() => {
       fetch('/api/effects' + (token ? '?token=' + encodeURIComponent(token) : ''))
         .then(res => res.json())
         .then(data => {
-          if (data && data.effects) {
-            updateEffectsButtons(data.effects);
+          if (data) {
+            if (data.backgrounds) renderBackgrounds(data.backgrounds, data.background);
+            if (data.effects) renderEffects(data.effects);
           }
         })
         .catch(() => {});
