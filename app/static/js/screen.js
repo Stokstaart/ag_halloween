@@ -184,7 +184,8 @@
     effectVideo.pause();
     effectVideo.className = 'video-layer';
 
-    if (effect.type === 'fullscreen') {
+    const mode = effect.display_mode || effect.type;
+    if (mode === 'fullscreen') {
       effectVideo.classList.add('mode-fullscreen');
       // Verberg achtergrondvideo tijdelijk visueel en audio-matig voor maximaal jumpscare impact
       bgVideo.style.opacity = '0';
@@ -309,7 +310,12 @@
   });
 
   // WebSocket verbinding
+  let isConnecting = false;
   function connectWebSocket() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     let wsUrl = `${protocol}//${window.location.host}/ws?role=screen`;
     if (token) {
@@ -317,7 +323,13 @@
     }
 
     console.info('Verbinden met WebSocket:', wsUrl);
-    ws = new WebSocket(wsUrl);
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch (err) {
+      console.error('Fout bij initialiseren WebSocket:', err);
+      scheduleReconnect();
+      return;
+    }
 
     ws.onopen = () => {
       console.info('WebSocket succesvol verbonden met Halloween server.');
@@ -359,7 +371,8 @@
       if (data.volume !== undefined) currentVolume = data.volume;
       if (data.muted !== undefined) isMuted = !!data.muted;
       setupBackground(data.background);
-    } else if (type === 'play_effect') {
+    } else if (type === 'play_effect' || type === 'fullscreen' || type === 'overlay' || data.web_url) {
+      console.info('play_effect signaal ontvangen:', data);
       playEffect(data);
     } else if (type === 'stop_effect') {
       console.info('Noodstop / stop_effect commando ontvangen.');
@@ -386,6 +399,18 @@
     }
     updateDebugHud();
   }, 15000);
+
+  // Liveness watchdog: controleer elke 3 seconden of de verbinding hersteld moet worden
+  setInterval(() => {
+    if (!ws || ws.readyState === WebSocket.CLOSED) {
+      connectWebSocket();
+    }
+  }, 3000);
+
+  window.addEventListener('online', () => connectWebSocket());
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) connectWebSocket();
+  });
 
   // Initialisatie bij pagina load
   window.addEventListener('DOMContentLoaded', () => {

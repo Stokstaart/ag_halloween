@@ -207,8 +207,9 @@ async def api_trigger(payload: TriggerRequest, authenticated: bool = Depends(ver
 
     # Broadcast naar alle schermen
     await manager.broadcast_to_screens({
-        "type": "play_effect",
         **effect_payload,
+        "display_mode": effect_payload.get("type", "overlay"),
+        "type": "play_effect",
     })
 
     # Update controllers
@@ -354,8 +355,9 @@ async def websocket_endpoint(websocket: WebSocket):
                         })
                         # Commando naar alle beamers
                         await manager.broadcast_to_screens({
-                            "type": "play_effect",
                             **effect_payload,
+                            "display_mode": effect_payload.get("type", "overlay"),
+                            "type": "play_effect",
                         })
                         # Status naar alle controllers
                         await manager.broadcast_to_controllers({
@@ -394,8 +396,9 @@ async def websocket_endpoint(websocket: WebSocket):
                             "is_random": True,
                         })
                         await manager.broadcast_to_screens({
-                            "type": "play_effect",
                             **effect_payload,
+                            "display_mode": effect_payload.get("type", "overlay"),
+                            "type": "play_effect",
                         })
                         await manager.broadcast_to_controllers({
                             "type": "effect_active",

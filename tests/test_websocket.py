@@ -7,10 +7,12 @@ from app.main import app, engine, manager
 
 @pytest.fixture(autouse=True)
 def cleanup_ws():
+    engine.disabled = False
     engine.stop_effect()
     engine.last_effect_ended_at = 0.0
     yield
     # Schoon managers op
+    engine.disabled = False
     manager.screen_connections.clear()
     manager.controller_connections.clear()
 
@@ -79,3 +81,37 @@ def test_websocket_large_message_rejected():
         resp = ws.receive_json()
         assert resp["type"] == "error"
         assert "overschrijdt maximale toegestane grootte" in resp["message"]
+
+
+def test_websocket_trigger_broadcast():
+    """Test dat het triggeren van een geconfigureerd effect type: play_effect uitzendt naar schermen."""
+    client = TestClient(app)
+    with client.websocket_connect("/ws?role=screen") as ws_screen:
+        _ = ws_screen.receive_json()  # init van screen
+
+        with client.websocket_connect("/ws?role=control") as ws_control:
+            _ = ws_control.receive_json()  # init van control
+
+            # Zoek een geconfigureerd effect
+            configured = [e for e in engine.get_effects_list() if e["configured"]]
+            if not configured:
+                pytest.skip("Geen geconfigureerd effect om te testen.")
+
+            target_effect = configured[0]["id"]
+            ws_control.send_json({"action": "trigger", "effect_id": target_effect})
+
+            # Control ontvangt trigger_ack en effect_active
+            ack = ws_control.receive_json()
+            assert ack["type"] == "trigger_ack"
+            assert ack["success"] is True
+
+            active = ws_control.receive_json()
+            assert active["type"] == "effect_active"
+
+            # Screen MOET play_effect ontvangen, NIET fullscreen of overlay als type!
+            screen_msg = ws_screen.receive_json()
+            assert screen_msg["type"] == "play_effect"
+            assert screen_msg["effect_id"] == target_effect
+            assert "web_url" in screen_msg
+            assert "display_mode" in screen_msg
+
