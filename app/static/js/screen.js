@@ -93,11 +93,18 @@
 
     // Start achtergrondvideo indien beschikbaar
     if (activeBgVideo && activeBgVideo.src) {
-      activeBgVideo.muted = isMuted || (backgroundConfig ? backgroundConfig.muted === true : false);
+      activeBgVideo.muted = isMuted;
       activeBgVideo.volume = isMuted ? 0 : currentVolume;
-      activeBgVideo.play().catch(err => {
-        console.warn('Achtergrondvideo autoplay waarschuwing na unlock:', err);
-      });
+      if (activeBgVideo.paused) {
+        activeBgVideo.play().catch(err => {
+          console.warn('Achtergrondvideo autoplay waarschuwing na unlock:', err);
+        });
+      }
+    }
+
+    if (standbyBgVideo && standbyBgVideo.src) {
+      standbyBgVideo.muted = isMuted;
+      standbyBgVideo.volume = isMuted ? 0 : currentVolume;
     }
 
     // Probeer effectvideo kort gereed te maken voor audio
@@ -135,7 +142,7 @@
         console.info('Naadloze achtergrond crossfade naar:', bg.web_url);
         standbyBgVideo.src = bg.web_url;
         standbyBgVideo.loop = bg.loop !== false;
-        standbyBgVideo.muted = isMuted || (bg.muted === true);
+        standbyBgVideo.muted = isMuted;
         standbyBgVideo.volume = isMuted ? 0 : currentVolume;
         standbyBgVideo.load();
 
@@ -158,10 +165,9 @@
             }
           }, 850);
         }).catch(err => {
-          console.warn('Standby video play mislukt, directe fallback switch:', err);
-          activeBgVideo.src = bg.web_url;
-          activeBgVideo.load();
-          activeBgVideo.play().catch(() => {});
+          console.warn('Standby video play mislukt, fallback naar gedempt:', err);
+          standbyBgVideo.muted = true;
+          standbyBgVideo.play().catch(() => {});
         });
         return;
       }
@@ -170,7 +176,7 @@
       if (activeBgVideo) {
         activeBgVideo.src = bg.web_url;
         activeBgVideo.loop = bg.loop !== false;
-        activeBgVideo.muted = isMuted || (bg.muted === true);
+        activeBgVideo.muted = isMuted;
         activeBgVideo.volume = isMuted ? 0 : currentVolume;
         activeBgVideo.load();
 
@@ -180,10 +186,15 @@
             unlockOverlay.classList.add('hidden');
           }
         }).catch(err => {
-          console.warn('Browser autoplay beleid blokkeert automatische start:', err);
+          console.warn('Browser autoplay beleid blokkeert audio start:', err);
           if (!isMediaUnlocked && unlockOverlay) {
             unlockOverlay.classList.remove('hidden');
           }
+          // Start gedempt afspelen zodat er tenminste beeld is totdat gebruiker klikt
+          activeBgVideo.muted = true;
+          activeBgVideo.play().then(() => {
+            activeBgVideo.classList.add('visible');
+          }).catch(() => {});
         });
       }
     } else {
@@ -297,7 +308,7 @@
     // Herstel achtergrondweergave vóór fade-out effectvideo
     if (activeBgVideo) {
       activeBgVideo.style.opacity = '1';
-      activeBgVideo.muted = isMuted || (backgroundConfig ? backgroundConfig.muted === true : false);
+      activeBgVideo.muted = isMuted;
       activeBgVideo.volume = isMuted ? 0 : currentVolume;
       if (activeBgVideo.paused && activeBgVideo.src) {
         activeBgVideo.play().catch(() => {});
@@ -439,11 +450,11 @@
       isMuted = !!data.muted;
       if (activeBgVideo) {
         activeBgVideo.volume = isMuted ? 0 : currentVolume;
-        activeBgVideo.muted = isMuted || (backgroundConfig ? backgroundConfig.muted === true : false);
+        activeBgVideo.muted = isMuted;
       }
       if (standbyBgVideo) {
         standbyBgVideo.volume = isMuted ? 0 : currentVolume;
-        standbyBgVideo.muted = isMuted || (backgroundConfig ? backgroundConfig.muted === true : false);
+        standbyBgVideo.muted = isMuted;
       }
       if (effectVideo) {
         effectVideo.volume = isMuted ? 0 : currentVolume;

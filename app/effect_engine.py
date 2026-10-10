@@ -120,7 +120,7 @@ class EffectEngine:
                     "file_exists": True,
                     "description": name,
                     "loop": True,
-                    "muted": True,
+                    "muted": False,
                 }
 
         # 2. Geconfigureerd achtergrondbestand uit effects.json
@@ -149,7 +149,7 @@ class EffectEngine:
             "file_exists": exists,
             "description": self.background_config.get("description", name),
             "loop": self.background_config.get("loop", True),
-            "muted": self.background_config.get("muted", True),
+            "muted": self.background_config.get("muted", False),
         }
 
     def get_background_list(self) -> List[Dict[str, Any]]:
