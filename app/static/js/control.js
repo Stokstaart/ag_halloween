@@ -245,8 +245,12 @@
     });
   }
 
-  // Klikafhandeling voor geluidseffecten
+  let lastSoundClickTime = 0;
   function handleSoundClick(btn) {
+    const now = Date.now();
+    if (now - lastSoundClickTime < 250) return;
+    lastSoundClickTime = now;
+
     vibrate(30);
     const soundId = btn.dataset.soundId;
     if (!soundId) return;
@@ -262,6 +266,7 @@
 
     sendCommand('play_sound', { sound_id: soundId });
   }
+
 
   // Berichtafhandeling
   function handleMessage(data) {
@@ -512,7 +517,23 @@
     btn.addEventListener('click', () => handleEffectClick(btn));
   });
 
+  // Event Listeners voor statisch gerenderde Geluidseffectknoppen
+  document.querySelectorAll('.btn-sound').forEach(btn => {
+    btn.addEventListener('click', () => handleSoundClick(btn));
+  });
+
+  // Event delegation op soundsGrid voor dynamische soundknoppen
+  if (soundsGrid) {
+    soundsGrid.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-sound');
+      if (btn) {
+        handleSoundClick(btn);
+      }
+    });
+  }
+
   // Emergency Stop / Return to Background (Noodstop)
+
   if (btnEmergency) {
     btnEmergency.addEventListener('click', () => {
       vibrate([60, 40, 60]);

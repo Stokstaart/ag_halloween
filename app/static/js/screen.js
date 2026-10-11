@@ -44,7 +44,7 @@
   let backgroundConfig = null;
   let currentOverlapHandler = null;
   const activeSoundEffects = new Set();
-
+  let lastPlayedSound = 'Geen';
 
   // Toggle debug HUD
   function updateDebugHud() {
@@ -55,6 +55,7 @@
         <strong>🎃 SCREEN DEBUG HUD</strong><br>
         WS Status: ${ws && ws.readyState === WebSocket.OPEN ? '<span style="color:#81c784">VERBONDEN</span>' : '<span style="color:#e57373">VERBROKEN</span>'}<br>
         Actief Effect: ${currentActiveEffect ? currentActiveEffect.effect_id : 'Geen (Achtergrond)'}<br>
+        Laatste Geluid: <span style="color:#ce93d8">${lastPlayedSound}</span><br>
         Volume: ${Math.round(currentVolume * 100)}% (Muted: ${isMuted})<br>
         Media Unlocked: ${isMediaUnlocked}<br>
         Scherm: ${window.innerWidth}x${window.innerHeight}px<br>
@@ -64,6 +65,7 @@
       debugHud.classList.remove('visible');
     }
   }
+
 
   // Toetsenbordsnelkoppelingen (bv. 'D' voor debug toggle, 'F' voor fullscreen)
   window.addEventListener('keydown', (e) => {
@@ -630,16 +632,22 @@
       player.addEventListener('ended', cleanup);
       player.addEventListener('error', onError);
 
+      lastPlayedSound = soundData.name || soundData.filename || 'Sound';
+      updateDebugHud();
+
       const playPromise = player.play();
       if (playPromise !== undefined) {
         playPromise.then(() => {
           console.info('Sound effect speelt succesvol af:', soundData.name);
+          updateDebugHud();
         }).catch(err => {
           console.warn('Autoplay waarschuwing bij sound effect play():', err.name, err.message);
-          // Als de browser Audio() weigert wegens autoplay, probeer met fallback instantie
+          lastPlayedSound = `${soundData.name} (Geblokkeerd door browser)`;
+          updateDebugHud();
           cleanup();
         });
       }
+
     } catch (e) {
       console.error('Fout bij afspelen sound effect:', e);
     }
