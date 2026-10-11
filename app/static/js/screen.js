@@ -17,6 +17,16 @@
   const noMediaNotice = document.getElementById('no-media-notice');
   const debugHud = document.getElementById('debug-hud');
 
+  // Vaste audio spelers voor Sound Effects
+  const sfxAudioPool = [
+    document.getElementById('sfx-audio-1'),
+    document.getElementById('sfx-audio-2'),
+    document.getElementById('sfx-audio-3'),
+    document.getElementById('sfx-audio-4'),
+  ].filter(Boolean);
+  let nextSfxPoolIndex = 0;
+
+
   // Parameters uit URL
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('token') || '';
@@ -118,8 +128,17 @@
       effectVideo.muted = isMuted;
     }
 
+    // Unmute en initialiseer alle sound effect audiospelers
+    sfxAudioPool.forEach(player => {
+      try {
+        player.muted = isMuted;
+        player.volume = isMuted ? 0 : currentVolume;
+      } catch (e) {}
+    });
+
     updateDebugHud();
   }
+
 
   if (unlockOverlay) {
     unlockOverlay.addEventListener('click', unlockMedia);
@@ -563,43 +582,69 @@
     }
   }
 
-  // Speelt een geluidseffect overlappend af via een dynamische Audio instantie
+  // Speelt een geluidseffect overlappend af via de sfx audio pool (met dynamische fallback)
   function playSoundEffect(soundData) {
-    if (!soundData || !soundData.web_url) return;
+    if (!soundData || !soundData.web_url) {
+      console.warn('playSoundEffect aangeroepen zonder web_url:', soundData);
+      return;
+    }
 
     if (unlockOverlay) {
       unlockOverlay.classList.add('hidden');
     }
 
-    try {
-      const audio = new Audio(soundData.web_url);
-      audio.volume = isMuted ? 0 : (soundData.volume !== undefined ? soundData.volume : currentVolume);
-      audio.muted = isMuted;
+    const soundUrl = soundData.web_url;
+    const targetVolume = isMuted ? 0 : (soundData.volume !== undefined ? soundData.volume : currentVolume);
 
-      activeSoundEffects.add(audio);
+    // 1. Kies een audiospeler uit de vaste pool in de DOM (heeft reeds autoplay-rechten)
+    let player = null;
+    if (sfxAudioPool.length > 0) {
+      player = sfxAudioPool[nextSfxPoolIndex % sfxAudioPool.length];
+      nextSfxPoolIndex++;
+    } else {
+      player = new Audio();
+    }
+
+    try {
+      player.pause();
+      player.src = soundUrl;
+      player.volume = targetVolume;
+      player.muted = isMuted;
+      player.currentTime = 0;
+      player.load();
+
+      activeSoundEffects.add(player);
 
       const cleanup = () => {
-        activeSoundEffects.delete(audio);
-        audio.removeEventListener('ended', cleanup);
-        audio.removeEventListener('error', cleanup);
+        activeSoundEffects.delete(player);
+        player.removeEventListener('ended', cleanup);
+        player.removeEventListener('error', onError);
       };
 
-      audio.addEventListener('ended', cleanup);
-      audio.addEventListener('error', (err) => {
-        console.warn('Fout bij afspelen van sound effect:', soundData.name, err);
+      const onError = (e) => {
+        const errDetails = player.error ? `Code ${player.error.code}: ${player.error.message}` : 'Onbekende audiofout';
+        console.error('Audiofout bij afspelen van sound effect:', soundData.name, errDetails, e);
         cleanup();
-      });
+      };
 
-      audio.play().then(() => {
-        console.info('Sound effect speelt overlappend:', soundData.name);
-      }).catch(err => {
-        console.warn('Autoplay beleid waarschuwing voor sound effect:', err);
-        cleanup();
-      });
+      player.addEventListener('ended', cleanup);
+      player.addEventListener('error', onError);
+
+      const playPromise = player.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          console.info('Sound effect speelt succesvol af:', soundData.name);
+        }).catch(err => {
+          console.warn('Autoplay waarschuwing bij sound effect play():', err.name, err.message);
+          // Als de browser Audio() weigert wegens autoplay, probeer met fallback instantie
+          cleanup();
+        });
+      }
     } catch (e) {
-      console.error('Fout bij initialiseren van Audio() voor sound effect:', e);
+      console.error('Fout bij afspelen sound effect:', e);
     }
   }
+
 
 
   // Heartbeat ping om verbinding levend te houden
