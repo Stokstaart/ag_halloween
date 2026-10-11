@@ -10,12 +10,15 @@
   let reconnectTimer = null;
   let activeEffectTimer = null;
   let cooldownTimer = null;
-  let currentVolume = 1.0;
-  let currentSoundVolume = 1.0;
+  let currentBgVolume = 0.8;
+  let currentScareVolume = 1.0;
   let isMuted = false;
   let effectsDisabled = false;
   let screensConnected = 0;
   const activeSoundIds = new Set();
+  let autopilotCountdownTimer = null;
+  let autopilotRemainingSeconds = 0;
+  let autopilotNextType = '';
 
   // DOM elementen
   const connectionDot = document.getElementById('connection-dot');
@@ -26,10 +29,10 @@
   const progressBarFill = document.getElementById('progress-bar-fill');
   const cooldownBanner = document.getElementById('cooldown-banner');
   const cooldownRemaining = document.getElementById('cooldown-remaining');
-  const volumeSlider = document.getElementById('volume-slider');
-  const volumeVal = document.getElementById('volume-val');
-  const soundVolumeSlider = document.getElementById('sound-volume-slider');
-  const soundVolumeVal = document.getElementById('sound-volume-val');
+  const bgVolumeSlider = document.getElementById('bg-volume-slider') || document.getElementById('volume-slider');
+  const bgVolumeVal = document.getElementById('bg-volume-val') || document.getElementById('volume-val');
+  const scareVolumeSlider = document.getElementById('scare-volume-slider') || document.getElementById('sound-volume-slider');
+  const scareVolumeVal = document.getElementById('scare-volume-val') || document.getElementById('sound-volume-val');
   const btnMute = document.getElementById('btn-mute');
   const toggleDisabled = document.getElementById('toggle-disabled');
   const btnEmergency = document.getElementById('btn-emergency');
@@ -39,6 +42,24 @@
   const bgActiveName = document.getElementById('bg-active-name');
   const effectsGrid = document.getElementById('effects-grid');
   const soundsGrid = document.getElementById('sounds-grid');
+
+  // Autopilot DOM
+  const toggleAutopilot = document.getElementById('toggle-autopilot');
+  const autopilotDetails = document.getElementById('autopilot-details');
+  const autopilotStatusBanner = document.getElementById('autopilot-status-banner');
+  const autopilotStatusText = document.getElementById('autopilot-status-text');
+  const autopilotStatusIcon = document.getElementById('autopilot-status-icon');
+  const autopilotMode = document.getElementById('autopilot-mode');
+  const autopilotIntervalPreset = document.getElementById('autopilot-interval-preset');
+
+  // Video Optimizer DOM
+  const btnOptimizeMedia = document.getElementById('btn-optimize-media');
+  const btnOptText = document.getElementById('btn-opt-text');
+  const btnOptIcon = document.getElementById('btn-opt-icon');
+  const optHealthBadge = document.getElementById('opt-health-badge');
+  const optProgressBox = document.getElementById('opt-progress-box');
+  const optProgressLabel = document.getElementById('opt-progress-label');
+  const optProgressBarFill = document.getElementById('opt-progress-bar-fill');
 
   let cachedBackgrounds = [];
   let cachedSounds = [];
@@ -300,13 +321,23 @@
         renderSounds(data.sounds);
       }
       if (data.status) {
-        if (data.status.volume !== undefined) setVolumeUI(data.status.volume);
-        if (data.status.sound_volume !== undefined) setSoundVolumeUI(data.status.sound_volume);
+        if (data.status.bg_volume !== undefined) setBgVolumeUI(data.status.bg_volume);
+        else if (data.status.volume !== undefined) setBgVolumeUI(data.status.volume);
+
+        if (data.status.scare_volume !== undefined) setScareVolumeUI(data.status.scare_volume);
+        else if (data.status.sound_volume !== undefined) setScareVolumeUI(data.status.sound_volume);
+
         if (data.status.muted !== undefined) setMuteUI(data.status.muted);
         if (data.status.disabled !== undefined) setDisabledUI(data.status.disabled);
         if (data.status.active_effect_id) {
           startActiveBanner(data.status.active_effect_id, 15);
         }
+      }
+      if (data.autopilot) {
+        setAutopilotUI(data.autopilot);
+      }
+      if (data.media_health) {
+        setMediaHealthUI(data.media_health);
       }
 
     } else if (type === 'connection_stats') {
@@ -364,9 +395,21 @@
       showToast(`Fout op beamer: ${data.message}`, true);
       stopActiveBanner();
     } else if (type === 'volume_update') {
-      if (data.volume !== undefined) setVolumeUI(data.volume);
-      if (data.sound_volume !== undefined) setSoundVolumeUI(data.sound_volume);
+      if (data.bg_volume !== undefined) setBgVolumeUI(data.bg_volume);
+      else if (data.volume !== undefined) setBgVolumeUI(data.volume);
+
+      if (data.scare_volume !== undefined) setScareVolumeUI(data.scare_volume);
+      else if (data.sound_volume !== undefined) setScareVolumeUI(data.sound_volume);
+
       if (data.muted !== undefined) setMuteUI(data.muted);
+    } else if (type === 'autopilot_update') {
+      if (data.autopilot) {
+        setAutopilotUI(data.autopilot);
+      }
+    } else if (type === 'media_optimize_progress') {
+      handleOptimizeProgress(data.optimize_status);
+    } else if (type === 'media_optimize_done') {
+      handleOptimizeDone(data.result, data.media_health);
     } else if (type === 'disabled_update') {
       setDisabledUI(data.disabled);
     }
@@ -425,19 +468,26 @@
     }, 200);
   }
 
-  // Audio & Toggles UI
+  // Audio UI
+  function setBgVolumeUI(vol) {
+    currentBgVolume = vol;
+    if (bgVolumeSlider) bgVolumeSlider.value = Math.round(vol * 100);
+    if (bgVolumeVal) bgVolumeVal.textContent = `${Math.round(vol * 100)}%`;
+  }
+
+  function setScareVolumeUI(vol) {
+    currentScareVolume = vol;
+    if (scareVolumeSlider) scareVolumeSlider.value = Math.round(vol * 100);
+    if (scareVolumeVal) scareVolumeVal.textContent = `${Math.round(vol * 100)}%`;
+  }
+
+  // Backward compatibility alias
   function setVolumeUI(vol) {
-    currentVolume = vol;
-    if (volumeSlider) volumeSlider.value = Math.round(vol * 100);
-    if (volumeVal) volumeVal.textContent = `${Math.round(vol * 100)}%`;
+    setBgVolumeUI(vol);
   }
-
   function setSoundVolumeUI(vol) {
-    currentSoundVolume = vol;
-    if (soundVolumeSlider) soundVolumeSlider.value = Math.round(vol * 100);
-    if (soundVolumeVal) soundVolumeVal.textContent = `${Math.round(vol * 100)}%`;
+    setScareVolumeUI(vol);
   }
-
 
   function setMuteUI(muted) {
     isMuted = muted;
@@ -450,6 +500,111 @@
   function setDisabledUI(disabled) {
     effectsDisabled = disabled;
     if (toggleDisabled) toggleDisabled.checked = disabled;
+  }
+
+  // Autopilot UI
+  function updateAutopilotCountdownText() {
+    if (!autopilotStatusText || !autopilotStatusIcon) return;
+    if (!toggleAutopilot || !toggleAutopilot.checked) {
+      autopilotStatusIcon.textContent = '💤';
+      autopilotStatusText.textContent = 'Autopilot staat uit';
+      if (autopilotStatusBanner) autopilotStatusBanner.classList.remove('active-firing');
+      return;
+    }
+
+    if (autopilotRemainingSeconds <= 0) {
+      autopilotStatusIcon.textContent = '⚡';
+      autopilotStatusText.textContent = 'Scare wordt afgevuurd...';
+      if (autopilotStatusBanner) autopilotStatusBanner.classList.add('active-firing');
+    } else {
+      if (autopilotStatusBanner) autopilotStatusBanner.classList.remove('active-firing');
+      autopilotStatusIcon.textContent = '⏳';
+      const typeLabel = autopilotNextType === 'sound' ? 'Geluid' : autopilotNextType === 'jumpscare' ? 'Jumpscare' : 'Willekeurig';
+      const timeStr = autopilotRemainingSeconds >= 60 ? `${(autopilotRemainingSeconds / 60).toFixed(1)} min` : `${autopilotRemainingSeconds}s`;
+      autopilotStatusText.textContent = `Volgende scare over ca. ${timeStr} (${typeLabel})`;
+    }
+  }
+
+  function setAutopilotUI(ap) {
+    if (!ap) return;
+    if (toggleAutopilot) toggleAutopilot.checked = !!ap.enabled;
+    if (autopilotDetails) {
+      if (ap.enabled) autopilotDetails.classList.remove('is-disabled');
+      else autopilotDetails.classList.add('is-disabled');
+    }
+    if (autopilotMode && ap.mode) autopilotMode.value = ap.mode;
+
+    clearInterval(autopilotCountdownTimer);
+    autopilotRemainingSeconds = ap.next_trigger_in || 0;
+    autopilotNextType = ap.next_trigger_type || 'jumpscare';
+
+    updateAutopilotCountdownText();
+
+    if (ap.enabled && autopilotRemainingSeconds > 0) {
+      autopilotCountdownTimer = setInterval(() => {
+        autopilotRemainingSeconds--;
+        updateAutopilotCountdownText();
+        if (autopilotRemainingSeconds <= 0) {
+          clearInterval(autopilotCountdownTimer);
+        }
+      }, 1000);
+    }
+  }
+
+  // Media Health UI
+  function setMediaHealthUI(report) {
+    if (!report || !optHealthBadge) return;
+    if (report.needs_optimization > 0) {
+      optHealthBadge.className = 'opt-badge badge-warn';
+      optHealthBadge.textContent = `⚠️ ${report.needs_optimization} te optimaliseren`;
+    } else {
+      optHealthBadge.className = 'opt-badge badge-ok';
+      optHealthBadge.textContent = '✅ Alles optimaal';
+    }
+
+    if (btnOptimizeMedia) {
+      if (report.is_optimizing) {
+        btnOptimizeMedia.disabled = true;
+        if (btnOptText) btnOptText.textContent = 'Optimalisatie loopt...';
+        if (btnOptIcon) btnOptIcon.textContent = '⏳';
+      } else {
+        btnOptimizeMedia.disabled = false;
+        if (btnOptText) btnOptText.textContent = 'Optimaliseer Video\'s Nu';
+        if (btnOptIcon) btnOptIcon.textContent = '⚡';
+      }
+    }
+  }
+
+  function handleOptimizeProgress(status) {
+    if (!status) return;
+    if (optProgressBox) optProgressBox.style.display = 'block';
+    if (btnOptimizeMedia) btnOptimizeMedia.disabled = true;
+    if (btnOptText) btnOptText.textContent = 'Optimaliseren...';
+    if (btnOptIcon) btnOptIcon.textContent = '⏳';
+
+    if (optProgressLabel) {
+      optProgressLabel.textContent = `${status.current_file || ''}: ${status.step || 'Verwerken...'}`;
+    }
+    if (optProgressBarFill) {
+      const pct = status.total > 0 ? Math.round((status.current_index / status.total) * 100) : 50;
+      optProgressBarFill.style.width = `${pct}%`;
+    }
+  }
+
+  function handleOptimizeDone(result, health) {
+    if (btnOptimizeMedia) btnOptimizeMedia.disabled = false;
+    if (btnOptText) btnOptText.textContent = 'Optimaliseer Video\'s Nu';
+    if (btnOptIcon) btnOptIcon.textContent = '⚡';
+
+    if (optProgressLabel) optProgressLabel.textContent = 'Voltooid! Alle video\'s zijn nu gerepareerd.';
+    if (optProgressBarFill) optProgressBarFill.style.width = '100%';
+
+    setTimeout(() => {
+      if (optProgressBox) optProgressBox.style.display = 'none';
+    }, 4000);
+
+    if (health) setMediaHealthUI(health);
+    showToast('⚡ Video optimalisatie voltooid! Wisselen gaat nu vloeiend.');
   }
 
   // WS commando verzenden met directe HTTP fallback
@@ -508,22 +663,41 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sound_id: payload.sound_id })
       }).catch(() => {});
-    } else if (action === 'set_sound_volume') {
+    } else if (action === 'set_bg_volume' || action === 'set_volume') {
       const volUrl = '/api/volume' + (token ? '?token=' + encodeURIComponent(token) : '');
       fetch(volUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sound_volume: payload.sound_volume !== undefined ? payload.sound_volume : payload.volume })
+        body: JSON.stringify({ bg_volume: payload.bg_volume !== undefined ? payload.bg_volume : payload.volume })
       }).catch(() => {});
-    } else if (action === 'set_volume') {
+    } else if (action === 'set_scare_volume' || action === 'set_sound_volume') {
       const volUrl = '/api/volume' + (token ? '?token=' + encodeURIComponent(token) : '');
       fetch(volUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ volume: payload.volume })
+        body: JSON.stringify({ scare_volume: payload.scare_volume !== undefined ? payload.scare_volume : payload.volume })
+      }).catch(() => {});
+    } else if (action === 'toggle_autopilot') {
+      const apUrl = '/api/autopilot' + (token ? '?token=' + encodeURIComponent(token) : '');
+      fetch(apUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: payload.enabled })
+      }).catch(() => {});
+    } else if (action === 'set_autopilot_config') {
+      const apUrl = '/api/autopilot' + (token ? '?token=' + encodeURIComponent(token) : '');
+      fetch(apUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(() => {});
+    } else if (action === 'optimize_media') {
+      const optUrl = '/api/media/optimize' + (token ? '?token=' + encodeURIComponent(token) : '');
+      fetch(optUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
       }).catch(() => {});
     } else if (action === 'stop') {
-
       const stopUrl = '/api/stop' + (token ? '?token=' + encodeURIComponent(token) : '');
       fetch(stopUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
         .then(() => stopActiveBanner())
@@ -531,7 +705,6 @@
     } else {
       showToast('Niet verbonden met server. Even geduld...', true);
     }
-
   }
 
   // Klikafhandeling voor effectknoppen
@@ -640,21 +813,21 @@
     });
   }
 
-  // Video Volume slider
-  if (volumeSlider) {
-    volumeSlider.addEventListener('input', (e) => {
+  // Achtergrond Video Volume slider
+  if (bgVolumeSlider) {
+    bgVolumeSlider.addEventListener('input', (e) => {
       const vol = parseFloat(e.target.value) / 100;
-      setVolumeUI(vol);
-      sendCommand('set_volume', { volume: vol });
+      setBgVolumeUI(vol);
+      sendCommand('set_bg_volume', { bg_volume: vol, volume: vol });
     });
   }
 
-  // Sound Effects Volume slider
-  if (soundVolumeSlider) {
-    soundVolumeSlider.addEventListener('input', (e) => {
+  // Scares & Sound Effects Volume slider
+  if (scareVolumeSlider) {
+    scareVolumeSlider.addEventListener('input', (e) => {
       const vol = parseFloat(e.target.value) / 100;
-      setSoundVolumeUI(vol);
-      sendCommand('set_sound_volume', { sound_volume: vol });
+      setScareVolumeUI(vol);
+      sendCommand('set_scare_volume', { scare_volume: vol, sound_volume: vol });
     });
   }
 
@@ -666,6 +839,51 @@
     });
   }
 
+  // Autopilot Schakelaar & Instellingen
+  if (toggleAutopilot) {
+    toggleAutopilot.addEventListener('change', (e) => {
+      vibrate(25);
+      const enabled = e.target.checked;
+      sendCommand('toggle_autopilot', { enabled });
+      showToast(enabled ? '⏱️ Autopilot ingeschakeld' : 'Autopilot uitgeschakeld');
+    });
+  }
+
+  if (autopilotMode) {
+    autopilotMode.addEventListener('change', (e) => {
+      vibrate(20);
+      const mode = e.target.value;
+      sendCommand('set_autopilot_config', { mode });
+      showToast(`Autopilot modus: ${mode === 'both' ? 'Beide' : mode === 'jumpscare' ? 'Alleen Jumpscares' : 'Alleen Geluiden'}`);
+    });
+  }
+
+  if (autopilotIntervalPreset) {
+    autopilotIntervalPreset.addEventListener('change', (e) => {
+      vibrate(20);
+      const val = e.target.value;
+      let minMin = 1.0;
+      let maxMin = 6.0;
+      if (val === '1-3') { minMin = 1.0; maxMin = 3.0; }
+      else if (val === '3-8') { minMin = 3.0; maxMin = 8.0; }
+      else if (val === '0.5-1.5') { minMin = 0.5; maxMin = 1.5; }
+      else { minMin = 1.0; maxMin = 6.0; }
+
+      sendCommand('set_autopilot_config', { min_minutes: minMin, max_minutes: maxMin });
+      showToast(`Interval ingesteld op ${minMin} - ${maxMin} min.`);
+    });
+  }
+
+  // Video Optimalisatie Knop
+  if (btnOptimizeMedia) {
+    btnOptimizeMedia.addEventListener('click', () => {
+      vibrate(35);
+      if (optProgressBox) optProgressBox.style.display = 'block';
+      if (optProgressLabel) optProgressLabel.textContent = 'Optimalisatie starten...';
+      sendCommand('optimize_media');
+      showToast('⚡ Video optimalisatie gestart op de achtergrond...');
+    });
+  }
 
   // Disabled Toggle
   if (toggleDisabled) {
@@ -728,14 +946,24 @@
           updateScreenStatus();
         }
         if (data.engine) {
-          if (data.engine.volume !== undefined) setVolumeUI(data.engine.volume);
-          if (data.engine.sound_volume !== undefined) setSoundVolumeUI(data.engine.sound_volume);
+          if (data.engine.bg_volume !== undefined) setBgVolumeUI(data.engine.bg_volume);
+          else if (data.engine.volume !== undefined) setBgVolumeUI(data.engine.volume);
+
+          if (data.engine.scare_volume !== undefined) setScareVolumeUI(data.engine.scare_volume);
+          else if (data.engine.sound_volume !== undefined) setScareVolumeUI(data.engine.sound_volume);
+
           if (data.engine.muted !== undefined) setMuteUI(data.engine.muted);
           if (data.engine.active_effect_id) {
             startActiveBanner(data.engine.active_effect_id, 15);
           } else {
             stopActiveBanner();
           }
+        }
+        if (data.autopilot) {
+          setAutopilotUI(data.autopilot);
+        }
+        if (data.media_health) {
+          setMediaHealthUI(data.media_health);
         }
       })
       .catch(() => {});
@@ -766,7 +994,9 @@
   window.addEventListener('DOMContentLoaded', () => {
     connectWebSocket();
 
-    // Haal initiële achtergronden, effecten en geluiden direct op
+    // Haal status, achtergronden, effecten en geluiden direct op
+    syncServerStatus();
+
     fetch('/api/effects' + (token ? '?token=' + encodeURIComponent(token) : ''))
       .then(res => res.json())
       .then(data => {

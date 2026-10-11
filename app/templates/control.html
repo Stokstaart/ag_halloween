@@ -147,47 +147,126 @@
       </div>
     </div>
 
-    <!-- 8. Audio Regeling & Opties -->
-    <div class="controls-card">
+    <!-- 8. Audio Regeling -->
+    <div class="controls-card volume-card">
+      <div class="controls-card-title">🔊 Geluidsbediening</div>
 
-      <div class="controls-card-title">Geluids- &amp; Systeembediening</div>
-
-      <div class="volume-section-label">🎬 Video Volume (Achtergrond &amp; Jumpscares)</div>
+      <div class="volume-section-label">🎬 Achtergrond Volume (Loop video)</div>
       <div class="volume-row">
-        <!-- 8. Mute / Unmute Knop -->
+        <!-- Mute / Unmute Knop -->
         <button id="btn-mute" class="btn-mute" type="button" title="Dempen / Dempen opheffen">
           🔊
         </button>
         <input
-          id="volume-slider"
+          id="bg-volume-slider"
           class="volume-slider"
           type="range"
           min="0"
           max="100"
-          value="100"
-          title="Video Volume"
+          value="80"
+          title="Achtergrond Video Volume"
         >
-        <span id="volume-val" class="volume-val">100%</span>
+        <span id="bg-volume-val" class="volume-val">80%</span>
       </div>
 
-      <div class="volume-section-label" style="margin-top: 0.75rem;">🎵 Sound Effects Volume (.mp3)</div>
+      <div class="volume-section-label" style="margin-top: 0.75rem;">💀 Scares &amp; Geluidseffecten Volume (Jumpscares &amp; .mp3)</div>
       <div class="volume-row">
-        <span class="volume-icon-badge">🎶</span>
+        <span class="volume-icon-badge">💀</span>
         <input
-          id="sound-volume-slider"
+          id="scare-volume-slider"
           class="volume-slider slider-purple"
           type="range"
           min="0"
           max="100"
           value="100"
-          title="Sound Effects Volume"
+          title="Scares & Sound Effects Volume"
         >
-        <span id="sound-volume-val" class="volume-val">100%</span>
+        <span id="scare-volume-val" class="volume-val">100%</span>
+      </div>
+    </div>
+
+    <!-- 🤖 Autopilot / Automatische Scares Card -->
+    <div class="controls-card autopilot-card">
+      <div class="card-header-with-toggle">
+        <div>
+          <div class="controls-card-title" style="margin-bottom: 0.2rem;">⏱️ Automatische Spookmodus (Autopilot)</div>
+          <div class="card-subtitle">Triggert automatisch willekeurige scares &amp; geluiden</div>
+        </div>
+        <label class="toggle-switch">
+          <input id="toggle-autopilot" type="checkbox" {% if autopilot and autopilot.enabled %}checked{% endif %}>
+          <span class="toggle-slider"></span>
+        </label>
       </div>
 
+      <div id="autopilot-details" class="autopilot-details {% if not (autopilot and autopilot.enabled) %}is-disabled{% endif %}">
+        <div class="autopilot-status-bar" id="autopilot-status-banner">
+          <span id="autopilot-status-icon">⏳</span>
+          <span id="autopilot-status-text">
+            {% if autopilot and autopilot.enabled and autopilot.next_trigger_in %}
+              Volgende scare over ca. {{ (autopilot.next_trigger_in / 60)|round(1) }} min ({{ autopilot.next_trigger_type or 'willekeurig' }})
+            {% else %}
+              Autopilot staat uit
+            {% endif %}
+          </span>
+        </div>
 
+        <div class="setting-row">
+          <label for="autopilot-mode" class="setting-label">Wat afspelen?</label>
+          <select id="autopilot-mode" class="setting-select">
+            <option value="both" {% if autopilot and autopilot.mode == 'both' %}selected{% endif %}>Beide (Jumpscares &amp; Geluiden)</option>
+            <option value="jumpscare" {% if autopilot and autopilot.mode == 'jumpscare' %}selected{% endif %}>Alleen Video Jumpscares</option>
+            <option value="sound" {% if autopilot and autopilot.mode == 'sound' %}selected{% endif %}>Alleen Geluidseffecten (.mp3)</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <label for="autopilot-interval-preset" class="setting-label">Interval:</label>
+          <select id="autopilot-interval-preset" class="setting-select">
+            <option value="1-6" selected>Elke 1 tot 6 minuten (Aanbevolen)</option>
+            <option value="1-3">Elke 1 tot 3 minuten (Spookhuis tempo)</option>
+            <option value="3-8">Elke 3 tot 8 minuten (Rustig)</option>
+            <option value="0.5-1.5">Elke 30 tot 90 sec (Testmodus)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⚡ Video Optimalisatie Card -->
+    <div class="controls-card optimizer-card">
+      <div class="card-header-with-badge">
+        <div>
+          <div class="controls-card-title" style="margin-bottom: 0.2rem;">⚡ Video Optimalisatie (FastStart)</div>
+          <div class="card-subtitle">Repareert buffering &amp; codecs voor naadloze overgangen</div>
+        </div>
+        <span id="opt-health-badge" class="opt-badge {% if media_health and media_health.needs_optimization > 0 %}badge-warn{% else %}badge-ok{% endif %}">
+          {% if media_health and media_health.needs_optimization > 0 %}
+            ⚠️ {{ media_health.needs_optimization }} te optimaliseren
+          {% else %}
+            ✅ Alles optimaal
+          {% endif %}
+        </span>
+      </div>
+
+      <div class="optimizer-actions">
+        <button id="btn-optimize-media" class="btn-optimize" type="button" {% if media_health and media_health.is_optimizing %}disabled{% endif %}>
+          <span id="btn-opt-icon">⚡</span>
+          <span id="btn-opt-text">Optimaliseer Video's Nu</span>
+        </button>
+      </div>
+
+      <div id="opt-progress-box" class="opt-progress-box" style="display: none;">
+        <div class="opt-progress-label" id="opt-progress-label">Bezig met optimaliseren...</div>
+        <div class="progress-bar-bg">
+          <div id="opt-progress-bar-fill" class="progress-bar-fill opt-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Systeembediening & Pauze -->
+    <div class="controls-card">
+      <div class="controls-card-title">⚙️ Systeembediening</div>
       <!-- Tijdelijk Uitschakelen Toggle -->
-      <div class="toggle-row">
+      <div class="toggle-row" style="border-top: none; padding-top: 0;">
         <span class="toggle-label">Effecten tijdelijk pauzeren</span>
         <label class="toggle-switch">
           <input id="toggle-disabled" type="checkbox">

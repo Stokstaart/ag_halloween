@@ -5,9 +5,14 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Veilige niet-root gebruiker aanmaken
-RUN groupadd -g 10001 appuser && \
-    useradd -u 10001 -g appuser -s /bin/bash -m appuser
+# Veilige niet-root gebruiker aanmaken (UID 1000 voor volume mount compatibiliteit)
+RUN (groupadd -g 1000 appuser 2>/dev/null || groupadd appuser) && \
+    (useradd -u 1000 -g 1000 -s /bin/bash -m appuser 2>/dev/null || useradd -s /bin/bash -m appuser)
+
+# Systeempakketten installeren (ffmpeg voor video-optimalisatie en faststart)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

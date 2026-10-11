@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: halloween-projection
     restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
     ports:
       - "${PORT:-8088}:8088"
     environment:

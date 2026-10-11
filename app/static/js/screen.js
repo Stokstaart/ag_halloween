@@ -39,8 +39,8 @@
   let currentActiveEffect = null;
   let effectTimeoutTimer = null;
   let isMediaUnlocked = false;
-  let currentVolume = 1.0;
-  let currentSoundVolume = 1.0;
+  let currentBgVolume = 0.8;
+  let currentScareVolume = 1.0;
   let isMuted = false;
   let backgroundConfig = null;
   let currentOverlapHandler = null;
@@ -113,7 +113,7 @@
     // Start achtergrondvideo indien beschikbaar
     if (activeBgVideo && activeBgVideo.src) {
       activeBgVideo.muted = isMuted;
-      activeBgVideo.volume = isMuted ? 0 : currentVolume;
+      activeBgVideo.volume = isMuted ? 0 : currentBgVolume;
       if (activeBgVideo.paused) {
         activeBgVideo.play().catch(err => {
           console.warn('Achtergrondvideo autoplay waarschuwing na unlock:', err);
@@ -123,12 +123,12 @@
 
     if (standbyBgVideo && standbyBgVideo.src) {
       standbyBgVideo.muted = isMuted;
-      standbyBgVideo.volume = isMuted ? 0 : currentVolume;
+      standbyBgVideo.volume = isMuted ? 0 : currentBgVolume;
     }
 
     // Probeer effectvideo kort gereed te maken voor audio
     if (effectVideo) {
-      effectVideo.volume = isMuted ? 0 : currentVolume;
+      effectVideo.volume = isMuted ? 0 : currentScareVolume;
       effectVideo.muted = isMuted;
     }
 
@@ -136,7 +136,7 @@
     sfxAudioPool.forEach(player => {
       try {
         player.muted = isMuted;
-        player.volume = isMuted ? 0 : currentVolume;
+        player.volume = isMuted ? 0 : currentScareVolume;
       } catch (e) {}
     });
 
@@ -171,7 +171,7 @@
         standbyBgVideo.src = bg.web_url;
         standbyBgVideo.loop = bg.loop !== false;
         standbyBgVideo.muted = isMuted;
-        standbyBgVideo.volume = isMuted ? 0 : currentVolume;
+        standbyBgVideo.volume = isMuted ? 0 : currentBgVolume;
         standbyBgVideo.load();
 
         standbyBgVideo.play().then(() => {
@@ -205,7 +205,7 @@
         activeBgVideo.src = bg.web_url;
         activeBgVideo.loop = bg.loop !== false;
         activeBgVideo.muted = isMuted;
-        activeBgVideo.volume = isMuted ? 0 : currentVolume;
+        activeBgVideo.volume = isMuted ? 0 : currentBgVolume;
         activeBgVideo.load();
 
         activeBgVideo.play().then(() => {
@@ -274,7 +274,8 @@
     }
 
     // Audio-instellingen
-    effectVideo.volume = isMuted ? 0 : (effect.has_audio ? currentVolume : 0);
+    const scareVol = effect.scare_volume !== undefined ? effect.scare_volume : currentScareVolume;
+    effectVideo.volume = isMuted ? 0 : (effect.has_audio ? scareVol : 0);
     effectVideo.muted = isMuted || !effect.has_audio;
 
     // Pas de achtergrond verbergen zodra het effectframe DAADWERKELIJK rendert (elimineert de zwarte hapering!)
@@ -397,7 +398,7 @@
       if (activeBgVideo) {
         activeBgVideo.style.opacity = '1';
         activeBgVideo.muted = isMuted;
-        activeBgVideo.volume = isMuted ? 0 : currentVolume;
+        activeBgVideo.volume = isMuted ? 0 : currentBgVolume;
         if (activeBgVideo.src) {
           activeBgVideo.play().catch(() => {});
         }
@@ -407,7 +408,7 @@
       if (activeBgVideo) {
         activeBgVideo.style.opacity = '1';
         activeBgVideo.muted = isMuted;
-        activeBgVideo.volume = isMuted ? 0 : currentVolume;
+        activeBgVideo.volume = isMuted ? 0 : currentBgVolume;
         if (activeBgVideo.paused && activeBgVideo.src) {
           activeBgVideo.play().catch(() => {});
         }
@@ -548,8 +549,12 @@
     const type = data.type;
 
     if (type === 'init' || type === 'background_update') {
-      if (data.volume !== undefined) currentVolume = data.volume;
-      if (data.sound_volume !== undefined) currentSoundVolume = data.sound_volume;
+      if (data.bg_volume !== undefined) currentBgVolume = data.bg_volume;
+      else if (data.volume !== undefined) currentBgVolume = data.volume;
+
+      if (data.scare_volume !== undefined) currentScareVolume = data.scare_volume;
+      else if (data.sound_volume !== undefined) currentScareVolume = data.sound_volume;
+
       if (data.muted !== undefined) isMuted = !!data.muted;
       setupBackground(data.background);
     } else if (type === 'play_sound') {
@@ -565,25 +570,29 @@
       console.info('Noodstop / stop_effect commando ontvangen.');
       returnToBackground(true);
     } else if (type === 'volume_update') {
-      if (data.volume !== undefined) currentVolume = data.volume;
-      if (data.sound_volume !== undefined) currentSoundVolume = data.sound_volume;
+      if (data.bg_volume !== undefined) currentBgVolume = data.bg_volume;
+      else if (data.volume !== undefined) currentBgVolume = data.volume;
+
+      if (data.scare_volume !== undefined) currentScareVolume = data.scare_volume;
+      else if (data.sound_volume !== undefined) currentScareVolume = data.sound_volume;
+
       isMuted = !!data.muted;
       if (activeBgVideo) {
-        activeBgVideo.volume = isMuted ? 0 : currentVolume;
+        activeBgVideo.volume = isMuted ? 0 : currentBgVolume;
         activeBgVideo.muted = isMuted;
       }
       if (standbyBgVideo) {
-        standbyBgVideo.volume = isMuted ? 0 : currentVolume;
+        standbyBgVideo.volume = isMuted ? 0 : currentBgVolume;
         standbyBgVideo.muted = isMuted;
       }
       if (effectVideo) {
-        effectVideo.volume = isMuted ? 0 : currentVolume;
+        effectVideo.volume = isMuted ? 0 : currentScareVolume;
         effectVideo.muted = isMuted;
       }
       // Werk volume bij voor alle actieve geluidseffecten
       activeSoundEffects.forEach(snd => {
         try {
-          snd.volume = isMuted ? 0 : currentSoundVolume;
+          snd.volume = isMuted ? 0 : currentScareVolume;
           snd.muted = isMuted;
         } catch (e) {}
       });
@@ -618,7 +627,7 @@
     }
 
     const soundUrl = soundData.web_url;
-    const targetVolume = isMuted ? 0 : (soundData.volume !== undefined ? soundData.volume : currentSoundVolume);
+    const targetVolume = isMuted ? 0 : (soundData.scare_volume !== undefined ? soundData.scare_volume : (soundData.volume !== undefined ? soundData.volume : currentScareVolume));
 
     // 1. Kies een audiospeler uit de vaste pool in de DOM (heeft reeds autoplay-rechten)
     let player = null;

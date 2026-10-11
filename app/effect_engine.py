@@ -34,12 +34,28 @@ class EffectEngine:
         self.active_effect_started_at: Optional[float] = None
         self.last_effect_ended_at: float = 0.0
         self.disabled: bool = False
-        self.volume: float = 1.0  # 0.0 - 1.0 (video volume)
-        self.sound_volume: float = 1.0  # 0.0 - 1.0 (losse sound effects volume)
+        self.bg_volume: float = 0.8  # 0.0 - 1.0 (enkel achtergrondvideo volume)
+        self.scare_volume: float = 1.0  # 0.0 - 1.0 (jumpscare videos + sound effects gecombineerd)
         self.muted: bool = False
         self._duration_cache: Dict[str, Tuple[float, float]] = {}
 
         self.load_configuration()
+
+    @property
+    def volume(self) -> float:
+        return self.bg_volume
+
+    @volume.setter
+    def volume(self, val: float):
+        self.bg_volume = max(0.0, min(1.0, float(val)))
+
+    @property
+    def sound_volume(self) -> float:
+        return self.scare_volume
+
+    @sound_volume.setter
+    def sound_volume(self, val: float):
+        self.scare_volume = max(0.0, min(1.0, float(val)))
 
 
     def _get_media_duration(self, file_path: Union[str, Path]) -> Optional[float]:
@@ -225,6 +241,8 @@ class EffectEngine:
             "description": self.background_config.get("description", name),
             "loop": self.background_config.get("loop", True),
             "muted": self.background_config.get("muted", False),
+            "volume": self.bg_volume,
+            "bg_volume": self.bg_volume,
         }
 
     def get_background_list(self) -> List[Dict[str, Any]]:
@@ -549,7 +567,9 @@ class EffectEngine:
             "duration": effect["duration"],
             "auto_return": effect["auto_return"],
             "started_at": now,
-            "volume": self.volume if not self.muted else 0.0,
+            "volume": self.scare_volume if not self.muted else 0.0,
+            "scare_volume": self.scare_volume,
+            "bg_volume": self.bg_volume,
             "muted": self.muted,
         }
         return True, "Effect gestart", payload
@@ -659,8 +679,9 @@ class EffectEngine:
             "name": sound["name"],
             "filename": sound["filename"],
             "web_url": sound["web_url"],
-            "volume": self.sound_volume if not self.muted else 0.0,
-            "sound_volume": self.sound_volume,
+            "volume": self.scare_volume if not self.muted else 0.0,
+            "sound_volume": self.scare_volume,
+            "scare_volume": self.scare_volume,
             "muted": self.muted,
         }
         return True, "Geluidseffect gestart", payload
@@ -677,15 +698,23 @@ class EffectEngine:
             "cooldown": self.cooldown_seconds,
         }
 
+    def set_bg_volume(self, volume: float) -> float:
+        """Stelt het achtergrondvideo audiovolume in tussen 0.0 en 1.0."""
+        self.bg_volume = max(0.0, min(1.0, float(volume)))
+        return self.bg_volume
+
+    def set_scare_volume(self, volume: float) -> float:
+        """Stelt het volume voor scares én sound effects gecombineerd in tussen 0.0 en 1.0."""
+        self.scare_volume = max(0.0, min(1.0, float(volume)))
+        return self.scare_volume
+
     def set_volume(self, volume: float) -> float:
-        """Stelt het video audiovolume in tussen 0.0 en 1.0."""
-        self.volume = max(0.0, min(1.0, float(volume)))
-        return self.volume
+        """Stelt het achtergrondvideo volume in (compatibiliteit)."""
+        return self.set_bg_volume(volume)
 
     def set_sound_volume(self, volume: float) -> float:
-        """Stelt het sound effects volume in tussen 0.0 en 1.0."""
-        self.sound_volume = max(0.0, min(1.0, float(volume)))
-        return self.sound_volume
+        """Stelt het scare volume in (compatibiliteit)."""
+        return self.set_scare_volume(volume)
 
     def set_muted(self, muted: bool) -> bool:
         """Dempt of herstelt audio."""
@@ -711,8 +740,10 @@ class EffectEngine:
             "active_effect_id": self.active_effect_id,
             "active_effect_started_at": self.active_effect_started_at,
             "disabled": self.disabled,
-            "volume": self.volume,
-            "sound_volume": self.sound_volume,
+            "volume": self.bg_volume,
+            "bg_volume": self.bg_volume,
+            "scare_volume": self.scare_volume,
+            "sound_volume": self.scare_volume,
             "muted": self.muted,
             "cooldown_remaining": self.get_cooldown_remaining(),
             "can_trigger": can,

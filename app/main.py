@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import (
+    BackgroundTasks,
     Depends,
     FastAPI,
     HTTPException,
@@ -32,6 +33,8 @@ from app.config import (
     PORT,
 )
 from app.effect_engine import EffectEngine
+from app.media_optimizer import MediaOptimizer
+from app.scheduler import AutoScareScheduler
 from app.ws_manager import ConnectionManager
 
 # Logging configuratie
@@ -58,6 +61,7 @@ app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
 # Core services
 engine = EffectEngine()
 manager = ConnectionManager()
+optimizer = MediaOptimizer(engine.media_dir)
 active_watchdog_task: Optional[asyncio.Task] = None
 
 
@@ -79,6 +83,57 @@ def schedule_watchdog(eid: str, duration: float) -> None:
             pass
 
     active_watchdog_task = asyncio.create_task(_watchdog())
+
+
+async def _on_autopilot_trigger(trigger_type: str):
+    import random
+    if trigger_type == "sound":
+        sounds = engine.get_sound_effects_list()
+        if sounds:
+            snd = random.choice(sounds)
+            success, reason, payload = engine.trigger_sound_effect(snd["id"])
+            if success:
+                await manager.broadcast_to_screens({
+                    "type": "play_sound",
+                    **payload,
+                })
+                await manager.broadcast_to_controllers({
+                    "type": "sound_playing",
+                    "sound_id": payload["sound_id"],
+                    "is_auto": True,
+                })
+                return True, snd["name"]
+    else:
+        success, reason, payload = engine.trigger_random(force=True)
+        if success:
+            await manager.broadcast_to_screens({
+                **payload,
+                "display_mode": payload.get("type", "overlay"),
+                "type": "play_effect",
+            })
+            await manager.broadcast_to_controllers({
+                "type": "effect_active",
+                "effect_id": payload["effect_id"],
+                "name": payload["name"],
+                "duration": payload["duration"],
+                "is_auto": True,
+            })
+            schedule_watchdog(payload["effect_id"], payload["duration"])
+            return True, payload["name"]
+    return False, "Geen effect beschikbaar"
+
+
+async def _on_autopilot_status(status_dict: dict):
+    await manager.broadcast_to_controllers({
+        "type": "autopilot_update",
+        "autopilot": status_dict,
+    })
+
+
+scheduler = AutoScareScheduler(
+    trigger_callback=_on_autopilot_trigger,
+    broadcast_callback=_on_autopilot_status,
+)
 
 
 # Beveiliging: optionele Bearer auth
@@ -121,9 +176,18 @@ class TriggerRequest(BaseModel):
 
 
 class VolumeRequest(BaseModel):
-    volume: Optional[float] = Field(None, ge=0.0, le=1.0, description="Video volume tussen 0.0 en 1.0")
-    sound_volume: Optional[float] = Field(None, ge=0.0, le=1.0, description="Sound effects volume tussen 0.0 en 1.0")
+    volume: Optional[float] = Field(None, ge=0.0, le=1.0, description="Algemeen of achtergrond volume")
+    bg_volume: Optional[float] = Field(None, ge=0.0, le=1.0, description="Enkel achtergrondvideo volume")
+    scare_volume: Optional[float] = Field(None, ge=0.0, le=1.0, description="Scares én sound effects volume")
+    sound_volume: Optional[float] = Field(None, ge=0.0, le=1.0, description="Sound effects volume compatibiliteit")
     muted: Optional[bool] = Field(None, description="Audio dempen of activeren")
+
+
+class AutopilotRequest(BaseModel):
+    enabled: Optional[bool] = Field(None, description="Autopilot in- of uitschakelen")
+    min_minutes: Optional[float] = Field(None, ge=0.1, le=60.0, description="Minimaal interval in minuten")
+    max_minutes: Optional[float] = Field(None, ge=0.1, le=120.0, description="Maximaal interval in minuten")
+    mode: Optional[str] = Field(None, description="'both', 'jumpscare', of 'sound'")
 
 
 
@@ -200,6 +264,8 @@ async def view_control(request: Request, token: Optional[str] = None):
             "effects": engine.get_effects_list(only_configured=True),
             "sounds": engine.get_sound_effects_list(),
             "background": engine.get_background(),
+            "autopilot": scheduler.get_status(),
+            "media_health": optimizer.get_health_report(),
         },
     )
 
@@ -223,6 +289,8 @@ async def api_status(authenticated: bool = Depends(verify_token)):
         "controllers_connected": stats["controller_count"],
         "background_ready": bg["file_exists"],
         "engine": engine_status,
+        "autopilot": scheduler.get_status(),
+        "media_health": optimizer.get_health_report(),
     }
 
 
@@ -388,22 +456,93 @@ async def api_effect_ended(request: Request, authenticated: bool = Depends(verif
 
 @app.post("/api/volume")
 async def api_volume(payload: VolumeRequest, authenticated: bool = Depends(verify_token)):
-    """Past video volume, sound effects volume of dempstatus aan."""
-    if payload.volume is not None:
-        engine.set_volume(payload.volume)
-    if payload.sound_volume is not None:
-        engine.set_sound_volume(payload.sound_volume)
+    """Past achtergrondvideo volume, scares & sound volume of dempstatus aan."""
+    if payload.bg_volume is not None:
+        engine.set_bg_volume(payload.bg_volume)
+    elif payload.volume is not None:
+        engine.set_bg_volume(payload.volume)
+
+    if payload.scare_volume is not None:
+        engine.set_scare_volume(payload.scare_volume)
+    elif payload.sound_volume is not None:
+        engine.set_scare_volume(payload.sound_volume)
+
     if payload.muted is not None:
         engine.set_muted(payload.muted)
 
     status_update = {
         "type": "volume_update",
-        "volume": engine.volume,
-        "sound_volume": engine.sound_volume,
+        "volume": engine.bg_volume,
+        "bg_volume": engine.bg_volume,
+        "scare_volume": engine.scare_volume,
+        "sound_volume": engine.scare_volume,
         "muted": engine.muted,
     }
     await manager.broadcast_all(status_update)
-    return {"success": True, "volume": engine.volume, "sound_volume": engine.sound_volume, "muted": engine.muted}
+    return {
+        "success": True,
+        "volume": engine.bg_volume,
+        "bg_volume": engine.bg_volume,
+        "scare_volume": engine.scare_volume,
+        "sound_volume": engine.scare_volume,
+        "muted": engine.muted,
+    }
+
+
+@app.get("/api/media/health")
+async def api_media_health(authenticated: bool = Depends(verify_token)):
+    """Haalt de gezondheidsstatus op van alle videobestanden (codecs en FastStart)."""
+    return optimizer.get_health_report()
+
+
+@app.post("/api/media/optimize")
+async def api_media_optimize(background_tasks: BackgroundTasks, authenticated: bool = Depends(verify_token)):
+    """Start automatische optimalisatie (FastStart en H.264 conversie) in de achtergrond."""
+    if optimizer.is_running:
+        return {"success": False, "message": "Optimalisatie is al bezig."}
+
+    async def _progress_cb(status_dict: dict):
+        await manager.broadcast_to_controllers({
+            "type": "media_optimize_progress",
+            "optimize_status": status_dict,
+        })
+
+    async def _run_opt():
+        res = await optimizer.optimize_all(progress_callback=_progress_cb)
+        await manager.broadcast_to_controllers({
+            "type": "media_optimize_done",
+            "result": res,
+            "media_health": optimizer.get_health_report(),
+        })
+
+    background_tasks.add_task(_run_opt)
+    return {"success": True, "message": "Optimalisatietaak gestart op de achtergrond."}
+
+
+@app.get("/api/autopilot")
+async def api_get_autopilot(authenticated: bool = Depends(verify_token)):
+    """Geeft de actuele status en timer van de autopilot scheduler."""
+    return scheduler.get_status()
+
+
+@app.post("/api/autopilot")
+async def api_set_autopilot(payload: AutopilotRequest, authenticated: bool = Depends(verify_token)):
+    """Stelt de autopilot in of schakelt deze in/uit."""
+    if payload.min_minutes is not None or payload.max_minutes is not None or payload.mode is not None:
+        scheduler.set_config(
+            min_minutes=payload.min_minutes,
+            max_minutes=payload.max_minutes,
+            mode=payload.mode,
+        )
+    if payload.enabled is not None:
+        scheduler.set_enabled(payload.enabled)
+
+    status_data = scheduler.get_status()
+    await manager.broadcast_to_controllers({
+        "type": "autopilot_update",
+        "autopilot": status_data,
+    })
+    return status_data
 
 
 
@@ -441,7 +580,10 @@ async def websocket_endpoint(websocket: WebSocket):
         await manager.send_personal(websocket, {
             "type": "init",
             "background": bg,
-            "volume": engine.volume,
+            "volume": engine.bg_volume,
+            "bg_volume": engine.bg_volume,
+            "scare_volume": engine.scare_volume,
+            "sound_volume": engine.scare_volume,
             "muted": engine.muted,
         })
     else:
@@ -454,6 +596,8 @@ async def websocket_endpoint(websocket: WebSocket):
             "background": engine.get_background(),
             "backgrounds": engine.get_background_list(),
             "screen_count": len(manager.screen_connections),
+            "autopilot": scheduler.get_status(),
+            "media_health": optimizer.get_health_report(),
         })
 
 
@@ -623,23 +767,51 @@ async def websocket_endpoint(websocket: WebSocket):
                     await manager.broadcast_to_screens({"type": "stop_effect"})
                     await manager.broadcast_to_controllers({"type": "effect_stopped"})
 
-                elif action == "set_volume":
-                    vol = data.get("volume", 1.0)
-                    engine.set_volume(vol)
+                elif action == "set_bg_volume":
+                    vol = data.get("volume") if data.get("volume") is not None else data.get("bg_volume", 0.8)
+                    engine.set_bg_volume(vol)
                     await manager.broadcast_all({
                         "type": "volume_update",
-                        "volume": engine.volume,
-                        "sound_volume": engine.sound_volume,
+                        "volume": engine.bg_volume,
+                        "bg_volume": engine.bg_volume,
+                        "scare_volume": engine.scare_volume,
+                        "sound_volume": engine.scare_volume,
+                        "muted": engine.muted,
+                    })
+
+                elif action == "set_scare_volume":
+                    vol = data.get("volume") if data.get("volume") is not None else data.get("scare_volume", 1.0)
+                    engine.set_scare_volume(vol)
+                    await manager.broadcast_all({
+                        "type": "volume_update",
+                        "volume": engine.bg_volume,
+                        "bg_volume": engine.bg_volume,
+                        "scare_volume": engine.scare_volume,
+                        "sound_volume": engine.scare_volume,
+                        "muted": engine.muted,
+                    })
+
+                elif action == "set_volume":
+                    vol = data.get("volume", 0.8)
+                    engine.set_bg_volume(vol)
+                    await manager.broadcast_all({
+                        "type": "volume_update",
+                        "volume": engine.bg_volume,
+                        "bg_volume": engine.bg_volume,
+                        "scare_volume": engine.scare_volume,
+                        "sound_volume": engine.scare_volume,
                         "muted": engine.muted,
                     })
 
                 elif action == "set_sound_volume":
                     vol = data.get("volume") if data.get("volume") is not None else data.get("sound_volume", 1.0)
-                    engine.set_sound_volume(vol)
+                    engine.set_scare_volume(vol)
                     await manager.broadcast_all({
                         "type": "volume_update",
-                        "volume": engine.volume,
-                        "sound_volume": engine.sound_volume,
+                        "volume": engine.bg_volume,
+                        "bg_volume": engine.bg_volume,
+                        "scare_volume": engine.scare_volume,
+                        "sound_volume": engine.scare_volume,
                         "muted": engine.muted,
                     })
 
@@ -647,10 +819,48 @@ async def websocket_endpoint(websocket: WebSocket):
                     muted = engine.toggle_muted()
                     await manager.broadcast_all({
                         "type": "volume_update",
-                        "volume": engine.volume,
-                        "sound_volume": engine.sound_volume,
+                        "volume": engine.bg_volume,
+                        "bg_volume": engine.bg_volume,
+                        "scare_volume": engine.scare_volume,
+                        "sound_volume": engine.scare_volume,
                         "muted": engine.muted,
                     })
+
+                elif action == "toggle_autopilot":
+                    target_state = data.get("enabled")
+                    if target_state is None:
+                        target_state = not scheduler.enabled
+                    scheduler.set_enabled(bool(target_state))
+                    await manager.broadcast_to_controllers({
+                        "type": "autopilot_update",
+                        "autopilot": scheduler.get_status(),
+                    })
+
+                elif action == "set_autopilot_config":
+                    scheduler.set_config(
+                        min_minutes=data.get("min_minutes"),
+                        max_minutes=data.get("max_minutes"),
+                        mode=data.get("mode"),
+                    )
+                    await manager.broadcast_to_controllers({
+                        "type": "autopilot_update",
+                        "autopilot": scheduler.get_status(),
+                    })
+
+                elif action == "optimize_media":
+                    async def _run_ws_opt():
+                        async def _prog_cb(status_dict):
+                            await manager.broadcast_to_controllers({
+                                "type": "media_optimize_progress",
+                                "optimize_status": status_dict,
+                            })
+                        res = await optimizer.optimize_all(progress_callback=_prog_cb)
+                        await manager.broadcast_to_controllers({
+                            "type": "media_optimize_done",
+                            "result": res,
+                            "media_health": optimizer.get_health_report(),
+                        })
+                    asyncio.create_task(_run_ws_opt())
 
 
                 elif action == "set_disabled":
