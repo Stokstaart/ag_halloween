@@ -1,24 +1,43 @@
 # 🎃 Halloween Projection Control
 
-Een zelfstandige, robuuste en sfeervolle webapplicatie om tijdens een Halloweenfeest draadloos en op afstand raamprojecties en enge effecten te activeren op een Android-beamer via een smartphone.
+Een zelfstandige, robuuste en sfeervolle webapplicatie om tijdens Halloween draadloos en realtime raamprojecties, jumpscares en overlappende geluidseffecten aan te sturen op een Android TV-beamer via een mobiele smartphone-controller.
 
 ---
 
 ## 🌟 Belangrijkste Eigenschappen
 
 - **Twee Gescheiden Interfaces**:
-  - `/screen`: Volledig scherm, clean, zwarte achtergrond, doorlopende achtergrondvideo (loop) en effectlaag.
-  - `/control`: Sfeervol mobiel bedieningspaneel in haunted house-stijl (zwart met pompoenoranje en bloedrode accenten), ontworpen voor éénhandsbediening.
-- **Realtijd Communicatie**: Lage latency via WebSockets met automatische reconnect en verbindingsindicatie.
-- **Effectengine**:
-  - Twee weergavemodi: `overlay` (zweeft over de achtergrond heen) en `fullscreen` (neemt tijdelijk het hele raam over).
-  - Slimme cooldown (voorkomt spammen), maximale tijdsduur per effect en automatische terugkeer naar de achtergrond.
-  - Directe noodstop (`Return to Background`).
-  - Ondersteuning voor niet-geconfigureerde effecten (ontbrekende mediabestanden worden duidelijk getoond en niet fictief geactiveerd).
-- **Lokaal & Homelab-Ready**:
-  - Draait 100% lokaal in Docker / Portainer, geen afhankelijkheid van externe cloud of internet.
-  - Klaar voor optionele Home Assistant integratie via eenvoudige REST-commando's (zonder verplichte afhankelijkheid).
-  - Geoptimaliseerd voor beamerbrowsers op Android TV (inclusief audio-autoplay unlock procedure).
+  - `/screen`: Volledig scherm, randloos, pure zwarte achtergrond (`#000000`), dual-layer videoplayer voor doorlopende achtergrondloops, naadloze overgangen en overlappende audio.
+  - `/control`: Sfeervol donker bedieningspaneel in haunted house-stijl (zwart, pompoenoranje en bloedrood), geoptimaliseerd voor éénhandsbediening op smartphone met haptische vibratiefeedback.
+- **Geen Kunstmatige Tijdslimieten of Wachttijden**:
+  - **0 Seconden Cooldown**: Geen verplichte wachttijd tussen scares. Je drukt op de knop wanneer het jou uitkomt.
+  - **Volledige Speelduur**: Scares worden niet kunstmatig afgekapt op een vaste limiet. De engine leest automatisch de werkelijke videoduur uit de MP4 metadata (`mvhd` atom) en speelt de video vloeiend uit.
+  - **Directe Override**: Het aantikken van een nieuwe scare breekt het vorige effect direct af en start het nieuwe effect onmiddellijk (`force: true`).
+- **Naadloze Dual-Layer Videoplayer (Zero Black Screen)**:
+  - Twee parallelle achtergrondspelers met vloeiende CSS crossfades.
+  - Bij een jumpscare blijft de achtergrond zichtbaar totdat het eerste frame van het schrikeffect daadwerkelijk decodeert en afspeelt.
+  - Vloeiende overgang terug naar de achtergrond ca. 0.7s vóór het einde van het effect.
+  - **Live Wisselen van Achtergrond**: Schakel op de controller direct tussen verschillende achtergrondloops in `media/background/`.
+- **🔊 Overlappende Geluidseffecten (.mp3)**:
+  - Speel losse geluidseffecten (screams, heksengelach, wolvengehuil, onweer) af via een speciale audio-pool.
+  - **Polyfoon & Overlappend**: Het afspelen van een geluidseffect dempt of stopt de lopende achtergrondvideo of jumpscarevideo **niet**.
+  - **Visuele Highlight & Toggle-to-Stop**: Spelende geluidseffecten lichten op de controller herkenbaar paars pulserend op. Een tweede klik op de pulserende knop stopt dat specifieke geluidseffect onmiddellijk.
+  - **Automatische Synchronisatie**: Zodra een geluidseffect is afgelopen, dooft de knop automatisch op alle aangesloten telefoons.
+- **🎚️ Gescheiden Volumeregeling**:
+  - Twee onafhankelijke volumeschuifbalken op de mobiele controller:
+    1. **Videovolume**: Voor de achtergrondvideo en video-jumpscares.
+    2. **🎵 Geluidseffecten Volume (.mp3)**: Specifiek voor de losse audio-effecten.
+- **📱 Flexibele Grid-indeling (3 of 4 Kolommen)**:
+  - Schakel bovenaan het paneel direct tussen een 3-koloms of 4-koloms raster voor effectknoppen, zodat je op elk smartphonescherm alle knoppen overzichtelijk bij de hand hebt. De voorkeur wordt onthouden in `localStorage`.
+- **🔍 Volledig Dynamische Mediabestandsdetectie**:
+  - Plaats simpelweg een nieuw videobestand (`.mp4`, `.webm`) in `media/effects/` of `media/background/`, of een audiobestand (`.mp3`, `.wav`) in `media/effects/music/`.
+  - Bestanden worden direct automatisch herkend en voorzien van een passende naam en Halloween-icoon, zonder handmatige configuratie van JSON-bestanden!
+- **🛑 Betrouwbare Noodstop & Herverbinding**:
+  - Directe noodstopknop (`Return to Background`) met dubbele WebSocket + HTTP REST fallback (`POST /api/stop`), die zowel actieve video's als spelende geluidseffecten per direct afbreekt.
+  - Automatische WebSocket liveness-watchdog en wake-lock herstel bij ontwaken van je smartphone.
+- **🏠 Homelab & Docker-Ready**:
+  - Draait 100% lokaal in Docker / Portainer, geen cloudverbinding vereist.
+  - Klaar voor Home Assistant automatiseringen via eenvoudige REST-commando's (bijv. gekoppeld aan een Zigbee deurbel of bewegingsmelder).
 
 ---
 
@@ -27,26 +46,26 @@ Een zelfstandige, robuuste en sfeervolle webapplicatie om tijdens een Halloweenf
 ```text
 .
 ├── app/
-│   ├── config.py           # Omgevingsvariabelen en padvalidatie
-│   ├── effect_engine.py    # Logica voor effecten, cooldowns en mediachecks
-│   ├── ws_manager.py       # WebSocket connection management
-│   ├── main.py             # FastAPI app, REST routes en WS endpoint
+│   ├── config.py           # Omgevingsvariabelen, padvalidatie en defaults
+│   ├── effect_engine.py    # Effectengine, MP4 metadataparser, dynamische schijfscan & volume
+│   ├── ws_manager.py       # WebSocket connection manager voor beamer en controllers
+│   ├── main.py             # FastAPI app, REST routes en realtime WebSocket communicatie
 │   ├── templates/
-│   │   ├── index.html      # Startpagina en statusoverzicht
-│   │   ├── screen.html     # Projectiescherm voor beamer
-│   │   └── control.html    # Mobiele controller voor smartphone
+│   │   ├── index.html      # Startpagina en statusdashboard
+│   │   ├── screen.html     # Projectiescherm voor beamer (dual-video + audio pool)
+│   │   └── control.html    # Mobiele controller (grid, sliders, achtergrondkeuze)
 │   └── static/
 │       ├── css/            # Vormgeving (screen.css & control.css)
 │       └── js/             # Client logica (screen.js & control.js)
 ├── config/
-│   └── effects.json        # Effectendefinities en instellingen
-├── media/                  # Persistente opslag voor videobestanden
-│   ├── background/         # Doorlopende achtergrond (ambient_fog.mp4)
-│   ├── effects/            # Effectvideo's (ghost_attack, zombie, etc.)
-│   └── audio/              # Optionele losse audiobestanden
-├── tests/                  # Geautomatiseerde testsuite (pytest)
-├── Dockerfile              # Container image (Python 3.12-slim, non-root)
-├── compose.yaml            # Docker Compose configuratie
+│   └── effects.json        # Basisconfiguratie en eventuele statische overrides
+├── media/                  # Persistente opslag voor mediabestanden
+│   ├── background/         # Achtergrondvideo's (bijv. Halloween Window Projection 2024.mp4)
+│   ├── effects/            # Jumpscare en schrikvideo's (scare1.mp4, window_scratcher.mp4, etc.)
+│   └── effects/music/      # Geluidseffecten (losse .mp3 bestanden zoals wolf howl, screams)
+├── tests/                  # Geautomatiseerde testsuite (pytest, 34 tests)
+├── Dockerfile              # Container image (Python 3.12-slim, non-root appuser)
+├── compose.yaml            # Docker Compose stack met volume mounts
 ├── .env.example            # Voorbeeldconfiguratie
 └── requirements.txt        # Python dependencies
 ```
@@ -55,21 +74,22 @@ Een zelfstandige, robuuste en sfeervolle webapplicatie om tijdens een Halloweenf
 
 ## 🚀 Snelle Start met Docker Compose
 
-### 1. Repository clonen of map openen
+### 1. Repository clonen of openen
 ```bash
-cd /home/stokstaart/Desktop/ag_halloween
+git clone https://github.com/Stokstaart/ag_halloween.git
+cd ag_halloween
 ```
 
 ### 2. Omgevingsbestand configureren (optioneel)
 ```bash
 cp .env.example .env
 ```
-Pas indien gewenst `.env` aan:
+Standaardwaarden in `.env`:
 ```env
 PORT=8088
-AUTH_TOKEN=mijn_geheime_token   # Laat leeg voor onbeveiligde LAN-modus
-COOLDOWN_SECONDS=3.0
-MAX_EFFECT_DURATION_SECONDS=30.0
+AUTH_TOKEN=                     # Laat leeg voor lokaal open LAN-gebruik
+COOLDOWN_SECONDS=0.0            # 0.0 = direct vuren zonder wachttijd
+MAX_EFFECT_DURATION_SECONDS=300.0  # Ruime veiligheidslimiet (5 min)
 ```
 
 ### 3. Container bouwen en starten
@@ -77,145 +97,130 @@ MAX_EFFECT_DURATION_SECONDS=30.0
 docker compose up -d --build
 ```
 
-De applicatie is nu bereikbaar op:
+De applicatie is nu direct bereikbaar via:
 - **Overzicht & Hub:** `http://<SERVER-IP>:8088/`
 - **Projectiescherm (Beamer):** `http://<SERVER-IP>:8088/screen`
-- **Mobiele Controller (Telefoon):** `http://<SERVER-IP>:8088/control`
+- **Mobiele Controller (Smartphone):** `http://<SERVER-IP>:8088/control`
 
 ---
 
-## 📽️ Installatie & Gebruik op de  (Android TV)
+## 📽️ Installatie & Gebruik op de Beamer (Android TV)
 
 1. **Browser installeren:**
-   - Open de **Google Play Store** op de  beamer.
-   - Installeer een geschikte browser voor Android TV. Aanbevolen browsers:
-     - **TV Bro** (open-source, uitstekende fullscreen en afstandsbediening-navigatie)
-     - **JioPages TV** of **BrowseHere**
-2. **Navigeer naar het projectiescherm:**
-   - Open in de browser: `http://<SERVER-IP>:8088/screen`
-3. **Eenmalige Audio Unlock:**
-   - Vanwege het autoplay-beleid van moderne webbrowsers mag een pagina niet automatisch audio afspelen totdat de gebruiker minstens één interactie heeft uitgevoerd.
-   - Bij het openen verschijnt eenmalig de melding: *"Halloween Projectie Gereed - Druk op OK op je afstandsbediening of klik hier om audio en beeld te activeren."*
-   - Druk eenmaal op **OK** (of tik op het scherm). De melding verdwijnt en de beamer blijft de hele avond autonoom draaien zonder verdere bediening.
-4. **Volledig scherm (Fullscreen):**
-   - Activeer fullscreen in de browser (in TV Bro kan dit via het menu of door op 'F' te drukken).
+   - Installeer een Android TV-geschikte browser via de Google Play Store op de beamer. Aanbevolen:
+     - **TV Bro** (open-source, uitstekende ondersteuning voor volledig scherm en afstandsbedieningen)
+     - **BrowseHere** of **JioPages TV**
+2. **Navigeer naar het scherm:**
+   - Open de URL: `http://<SERVER-IP>:8088/screen`
+3. **Eenmalige Audio Autoplay Unlock:**
+   - Browsers blokkeren automatische audio tot de eerste interactie.
+   - Bij het openen toont het scherm eenmalig een melding: *"Halloween Projectie Gereed - Druk op OK op je afstandsbediening of klik hier om audio en beeld te activeren."*
+   - Druk op **OK** op de afstandsbediening. De beamer draait daarna de hele avond autonoom met geluid.
+4. **Volledig scherm:**
+   - Schakel fullscreen in via het browsermenu (in TV Bro bijv. via menu of toets 'F').
 5. **Debug HUD (optioneel):**
-   - Voeg `?debug=1` toe aan de URL of druk op de toets **D** op een aangesloten toetsenbord om realtime statistieken (FPS, WS status, actieve video) te bekijken.
+   - Druk op toets **D** (of open met `?debug=1`) voor realtime weergave van FPS, actieve spelers en netwerkstatus.
+6. **Sneltoets Noodstop:**
+   - Druk op **Escape** of **S** op een aangesloten toetsenbord/afstandsbediening om direct terug te keren naar de achtergrond.
 
 ---
 
-## 📱 Gebruik van de Mobiele Controller
+## 📱 Gebruik van de Mobiele Controller (`/control`)
 
-Open `http://<SERVER-IP>:8088/control` op je telefoon (verbonden met hetzelfde Wi-Fi netwerk).
+Open `http://<SERVER-IP>:8088/control` op je telefoon op hetzelfde netwerk.
 
-Het paneel bevat minimaal de 8 vereiste functies:
-1. **Ghost Attack** (👻) - Overlay: spookachtige verschijning over de mist.
-2. **Zombie** (🧟) - Fullscreen: zombie slaat tegen het raam.
-3. **Creepy Eyes** (👁️) - Overlay: gloeiende ogen in het donker.
-4. **Jumpscare** (💀) - Fullscreen: plotselinge angstaanjagende schrikscène.
-5. **Window Scratcher** (🐾) - Overlay: krassende klauwen over het raam.
-6. **Random Scare** (🎲) - Kiest direct een willekeurig beschikbaar effect.
-7. **Return to Background (Noodstop)** (🛑) - Stopt elk actief effect en keert direct terug naar de achtergrond.
-8. **Mute / Unmute & Volumeregelaar** (🔊 / 🔇) - Regelt het audiovolume van de projectie op afstand.
-
-> **Let op:** Knoppen waarvoor nog geen videobestand in `media/effects/` staat, worden automatisch aangeduid met een badge `GEEN BESTAND` en gedimd weergegeven. Wanneer je hierop tikt, geeft de app direct een duidelijke melding en wordt er geen onecht effect gestart.
+### Onderdelen van het bedieningspaneel:
+1. **Verbindingsstatus & Noodstop**:
+   - Statusindicator (`🟢 Beamer verbonden` / `🔴 Geen beamer verbonden`).
+   - Grote rode **🛑 Noodstop (Return to Background)** knop die per direct video's en geluiden afbreekt.
+2. **🎬 Achtergrond Selectie**:
+   - Dropdown met alle gedetecteerde video's in `media/background/`.
+   - Druk op **Wissel** om naadloos met een crossfade over te schakelen naar een andere achtergrondloop.
+3. **💀 Jumpscares & Effecten**:
+   - Raster met alle geconfigureerde en dynamisch gedetecteerde videoscares (Ghost Attack, Jumpscare, Window Scratcher, Scare 4, Scare 5, etc.).
+   - **3 / 4 Kolommen Toggle**: Schakel tussen 3 of 4 knoppen per rij.
+   - **Geen cooldown**: Druk op elk gewenst moment op een effect; een actief effect wordt direct vervangen door het nieuw gekozen effect.
+   - **Voortgangsbalk**: Toont realtime de resterende seconden op basis van de werkelijke lengte van de video.
+4. **🔊 Geluidseffecten (Overlap)**:
+   - Knoppen voor losse `.mp3` effecten (Screams, Wolf Howl, Sirens, etc.).
+   - **Paarse puls**: Knop pulseert zolang het geluid speelt.
+   - **Stop toggle**: Klik nogmaals op een pulserende knop om uitsluitend dat geluidseffect direct te stoppen.
+5. **🎚️ Onafhankelijke Volumeregeling**:
+   - **Bovenste slider**: Videovolume (achtergrond + jumpscares) + Mute toggle.
+   - **Onderste slider (paars)**: Geluidseffecten Volume (.mp3).
 
 ---
 
 ## 🎬 Mediabestanden Toevoegen
 
-Plaats je eigen MP4-bestanden in de volgende mappen:
+Plaats je eigen bestanden in de bijbehorende mappen (hot-reload, geen herstart nodig):
 
-- **Achtergrond:**
-  `media/background/ambient_fog.mp4`
-- **Effecten:**
-  `media/effects/ghost_attack.mp4`
-  `media/effects/zombie.mp4`
-  `media/effects/creepy_eyes.mp4`
-  `media/effects/jumpscare.mp4`
-  `media/effects/window_scratcher.mp4`
+- **Achtergronden (`media/background/`):**
+  - Bijv. `ambient_fog.mp4`, `Halloween Window Projection 2024.mp4`, `Achtergrond1.mp4`.
+  - Video's loopen automatisch en zijn direct selecteerbaar in het dropdown-menu.
+- **Jumpscares & Scares (`media/effects/`):**
+  - Bijv. `scare1.mp4`, `scare4.mp4`, `window_scratcher.mp4`.
+  - Worden automatisch herkend en getoond als effectknoppen.
+- **Geluidseffecten (`media/effects/music/` of `media/audio/`):**
+  - Bijv. `Wolf howl.mp3`, `SCREAM - Horror sound.mp3`, `thunder.mp3`.
+  - Verschijnen automatisch als geluidseffectknoppen in de paarse sectie.
 
-### Aanbevolen Media Specificaties:
-- **Container:** `.mp4`
-- **Videocodec:** H.264 (AVC) - High Profile (optimaal compatibel met Android TV hardware-decoding).
-- **Audiocodec:** AAC (Stereo, 44.1 of 48 kHz).
-- **Resolutie:** 1920x1080 (Full HD) of 1280x720 (HD).
-- **Framerate:** 24, 25 of 30 fps.
-- **Transparantie / Overlays:** Voor overlapeffecten kun je MP4 video's met een zwarte achtergrond gebruiken (de app toont deze direct over de loop).
+### Aanbevolen Codecs:
+- **Video:** H.264 (AVC) met AAC audio en FastStart (`+faststart` moov atom).
+- **Audio:** MP3 of AAC (Stereo, 44.1 of 48 kHz).
+- *Tip:* Bestanden met moderne codecs zoals AV1 kunnen door Android TV decoders haperen; converteer ze eenvoudig naar H.264 via `ffmpeg -i input.mp4 -c:v libx264 -preset fast -crf 22 -c:a aac -movflags +faststart output.mp4`.
 
 ---
 
 ## 🔒 Beveiliging
 
-1. **Vertrouwd Thuisnetwerk (Standaard):**
-   - Als `AUTH_TOKEN` leeg wordt gelaten, werkt de app direct binnen je eigen LAN.
-   - De controller toont dan een duidelijke waarschuwing: `⚠️ LAN Open` om te voorkomen dat er een vals gevoel van veiligheid ontstaat.
-2. **Beveiligde Modus:**
-   - Stel in `.env` een token in: `AUTH_TOKEN=mijnGeheimeToken123`.
-   - Open de controller via: `http://<SERVER-IP>:8088/control?token=mijnGeheimeToken123`.
-   - Open het scherm via: `http://<SERVER-IP>:8088/screen?token=mijnGeheimeToken123`.
-   - *Let op:* Tokens in querystrings kunnen zichtbaar zijn in browsergeschiedenis en webserverlogs. Voor ultieme beveiliging bij externe toegang wordt een reverse proxy (zoals Nginx Proxy Manager, Traefik of Cloudflare Tunnel) met HTTPS aanbevolen. Stel de app **niet** ongeauthenticeerd publiek bloot aan het internet.
+1. **Lokaal Netwerk (Standaard):**
+   - Met lege `AUTH_TOKEN` is het systeem direct bruikbaar op je thuisnetwerk. De controller toont een subtiele `⚠️ LAN Open` badge.
+2. **Beveiligde Token Modus:**
+   - Vul in `.env` een token in: `AUTH_TOKEN=mijnGeheimeToken123`.
+   - Open de interfaces via `http://<SERVER-IP>:8088/control?token=mijnGeheimeToken123` en `http://<SERVER-IP>:8088/screen?token=mijnGeheimeToken123`.
 3. **Path Traversal Bescherming:**
-   - De backend valideert strikt alle bestandspaden; willekeurige bestandspaden of `..` worden categorisch geweigerd. Alleen toegestane media-extensies binnen de `media/` directory worden ingelezen.
+   - De backend valideert alle bestandspaden strikt; ongeldige bestandspaden en `..` worden categorisch geblokkeerd.
 
 ---
 
 ## 🏠 Optionele Home Assistant Integratie
 
-De applicatie functioneert volledig zelfstandig, maar kan eenvoudig worden aangestuurd vanuit Home Assistant (bijvoorbeeld via een Zigbee bewegingsmelder, deurbel of tijdschakelaar).
+Aansturing via Home Assistant verloopt eenvoudig via standaard REST-commando's:
 
-Er worden bewust **geen** Home Assistant tokens in de frontend opgeslagen. De communicatie verloopt via Home Assistant's ingebouwde `rest_command`.
-
-### Voorbeeld `configuration.yaml` in Home Assistant:
-
+### `configuration.yaml` in Home Assistant:
 ```yaml
 rest_command:
-  halloween_trigger_ghost:
-    url: "http://<IP-VAN-HALLOWEEN-SERVER>:8088/api/trigger"
-    method: "POST"
-    headers:
-      Content-Type: "application/json"
-      # Indien AUTH_TOKEN is ingesteld:
-      # Authorization: "Bearer JOUW_TOKEN"
-    payload: '{"effect_id": "ghost_attack"}'
-
   halloween_trigger_jumpscare:
-    url: "http://<IP-VAN-HALLOWEEN-SERVER>:8088/api/trigger"
+    url: "http://<IP-SERVER>:8088/api/trigger"
     method: "POST"
     headers:
       Content-Type: "application/json"
-    payload: '{"effect_id": "jumpscare"}'
+    payload: '{"effect_id": "jumpscare", "force": true}'
 
-  halloween_stop_effect:
-    url: "http://<IP-VAN-HALLOWEEN-SERVER>:8088/api/stop"
+  halloween_trigger_sound:
+    url: "http://<IP-SERVER>:8088/api/sound"
     method: "POST"
-```
+    headers:
+      Content-Type: "application/json"
+    payload: '{"sound_id": "sound_wolf_howl"}'
 
-### Voorbeeld Home Assistant Automatisering:
-
-```yaml
-alias: "Halloween Raam - Jumpscare bij Deurbel"
-description: "Start direct jumpscare op het raam zodra er wordt aangebeld"
-trigger:
-  - platform: state
-    entity_id: binary_sensor.smart_doorbell
-    to: "on"
-action:
-  - service: rest_command.halloween_trigger_jumpscare
-mode: single
+  halloween_stop:
+    url: "http://<IP-SERVER>:8088/api/stop"
+    method: "POST"
 ```
 
 ---
 
-## 🧪 Lokale Tests Uitvoeren
+## 🧪 Geautomatiseerde Tests
 
-De testsuite dekt de REST API, de EffectEngine en WebSocket interacties:
+De testsuite valideert de REST API, EffectEngine, audio playback, cooldown overrides en WebSocket broadcasts:
 
 ```bash
 # Virtuele omgeving activeren
 source .venv/bin/activate
 
-# Tests draaien
+# 34 tests uitvoeren
 pytest -v
 ```
 
@@ -223,8 +228,6 @@ pytest -v
 
 ## 📄 Portainer Stack Template
 
-Voor beheer via Portainer:
-1. Ga in Portainer naar **Stacks** &rarr; **Add stack**.
-2. Kies **Web editor** en plak de inhoud van `compose.yaml`.
-3. Voeg eventueel environment variabelen toe (`PORT=8088`, etc.).
-4. Klik op **Deploy the stack**.
+1. Ga in Portainer naar **Stacks** → **Add stack**.
+2. Plak de inhoud van `compose.yaml`.
+3. Klik op **Deploy the stack**.
