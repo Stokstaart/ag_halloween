@@ -440,6 +440,11 @@
 
   [bgVideo1, bgVideo2].forEach((v) => {
     if (v) {
+      v.addEventListener('ended', () => {
+        console.info('Achtergrondvideo heeft einde bereikt; automatische repeat/loop herstarten.');
+        v.currentTime = 0;
+        v.play().catch(err => console.warn('Herstart achtergrondloop waarschuwing:', err));
+      });
       v.addEventListener('error', (e) => {
         console.error('Fout bij laden van achtergrondvideo:', v.error, e);
         if (noMediaNotice) {
