@@ -12,9 +12,12 @@
       <div class="header-top">
         <h1>🎃 Raamprojectie</h1>
         {% if auth_configured %}
-          <span class="auth-badge auth-secured">🔒 Beveiligd</span>
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <span class="auth-badge auth-secured">🔒 Beveiligd</span>
+            <a href="/logout" title="Uitloggen" style="color: var(--text-muted); text-decoration: none; font-size: 0.78rem; border-bottom: 1px dotted var(--text-muted);">Uitloggen</a>
+          </div>
         {% else %}
-          <span class="auth-badge auth-unsecured" title="Geen token geconfigureerd">⚠️ LAN Open</span>
+          <span class="auth-badge auth-unsecured" title="Geen wachtwoord geconfigureerd">⚠️ LAN Open</span>
         {% endif %}
       </div>
     </header>

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Login - Halloween Raamprojectie</title>
+  <style>
+    :root {
+      --bg: #0c0710;
+      --card-bg: #160e1d;
+      --orange: #ff7518;
+      --orange-glow: rgba(255, 117, 24, 0.4);
+      --crimson: #c62828;
+      --text: #f0e6d2;
+      --text-muted: #a38db0;
+      --border: #2d1836;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(circle at 50% 20%, #1a0d24 0%, var(--bg) 70%);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .login-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2.25rem 1.75rem;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 25px rgba(255, 117, 24, 0.15);
+      text-align: center;
+    }
+    .login-icon {
+      font-size: 3rem;
+      margin-bottom: 0.5rem;
+      filter: drop-shadow(0 0 10px var(--orange-glow));
+    }
+    h1 {
+      font-size: 1.5rem;
+      color: var(--orange);
+      margin-bottom: 0.35rem;
+      text-shadow: 0 0 12px var(--orange-glow);
+    }
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-bottom: 1.5rem;
+      line-height: 1.4;
+    }
+    .error-box {
+      background: rgba(198, 40, 40, 0.2);
+      border: 1px solid var(--crimson);
+      color: #ff99aa;
+      padding: 0.65rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+    .form-group {
+      margin-bottom: 1.25rem;
+      text-align: left;
+    }
+    label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 0.4rem;
+      font-weight: 600;
+    }
+    input[type="password"], input[type="text"] {
+      width: 100%;
+      background: #201328;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      color: #fff;
+      font-size: 1.05rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    input[type="password"]:focus, input[type="text"]:focus {
+      border-color: var(--orange);
+      box-shadow: 0 0 12px var(--orange-glow);
+    }
+    .btn-submit {
+      width: 100%;
+      background: linear-gradient(135deg, #ff7518 0%, #d85c07 100%);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.9rem;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(255, 117, 24, 0.3);
+      transition: transform 0.1s, box-shadow 0.15s;
+    }
+    .btn-submit:hover {
+      box-shadow: 0 4px 20px rgba(255, 117, 24, 0.5);
+    }
+    .btn-submit:active {
+      transform: scale(0.97);
+    }
+    .login-footer {
+      margin-top: 1.5rem;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="login-icon">🎃</div>
+    <h1>Raamprojectie</h1>
+    <p class="subtitle">Voer het wachtwoord in om toegang te krijgen tot de controller.</p>
+
+    {% if error %}
+      <div class="error-box">
+        <span>⚠️</span> <span>{{ error }}</span>
+      </div>
+    {% endif %}
+
+    <form method="POST" action="/login">
+      <input type="hidden" name="next" value="{{ next_url or '/control' }}">
+      <div class="form-group">
+        <label for="password">Wachtwoord</label>
+        <input type="password" id="password" name="password" required autofocus placeholder="Wachtwoord..." autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn-submit">Ontgrendel 🔓</button>
+    </form>
+
+    <div class="login-footer">
+      🔒 Inloggen blijft 30 dagen onthouden
+    </div>
+  </div>
+</body>
+</html>

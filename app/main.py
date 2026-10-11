@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -17,7 +18,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -136,8 +137,36 @@ scheduler = AutoScareScheduler(
 )
 
 
-# Beveiliging: optionele Bearer auth
+# Beveiliging: optionele Bearer / cookie / token auth
 bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def is_authenticated(request: Request, token_param: Optional[str] = None) -> bool:
+    """Controleert of een verzoek geauthenticeerd is via cookie, token of header."""
+    if not AUTH_TOKEN:
+        return True  # Onbeveiligde LAN-modus
+
+    # 1. Cookie check (voor web-sessies)
+    if request.cookies.get("auth_token") == AUTH_TOKEN:
+        return True
+
+    # 2. Query parameter (?token=...)
+    if token_param and token_param == AUTH_TOKEN:
+        return True
+    req_token = request.query_params.get("token")
+    if req_token and req_token == AUTH_TOKEN:
+        return True
+
+    # 3. Headers (voor curl, Home Assistant of externe API-aanroepen)
+    x_token = request.headers.get("X-Auth-Token")
+    if x_token and x_token == AUTH_TOKEN:
+        return True
+
+    auth_hdr = request.headers.get("Authorization", "")
+    if auth_hdr.startswith("Bearer ") and auth_hdr[7:].strip() == AUTH_TOKEN:
+        return True
+
+    return False
 
 
 def verify_token(
@@ -145,21 +174,14 @@ def verify_token(
     auth_header: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
     token_param: Optional[str] = Query(None, alias="token"),
 ) -> bool:
-    """Valideert toegangstoken indien AUTH_TOKEN geconfigureerd is."""
+    """Valideert toegangstoken voor REST endpoints indien AUTH_TOKEN geconfigureerd is."""
     if not AUTH_TOKEN:
-        return True  # Onbeveiligde LAN-modus toegestaan
+        return True
 
-    # Check header
+    if is_authenticated(request, token_param):
+        return True
+
     if auth_header and auth_header.credentials == AUTH_TOKEN:
-        return True
-
-    # Check X-Auth-Token header
-    x_token = request.headers.get("X-Auth-Token")
-    if x_token and x_token == AUTH_TOKEN:
-        return True
-
-    # Check query param (?token=...)
-    if token_param and token_param == AUTH_TOKEN:
         return True
 
     raise HTTPException(
@@ -208,16 +230,93 @@ class SoundRequest(BaseModel):
 # HTML Views
 # ==========================================
 
+@app.get("/login", response_class=HTMLResponse)
+async def view_login(request: Request, next: Optional[str] = "/control", token: Optional[str] = None):
+    """Toont het inlogscherm (of stuurt door indien al ingelogd)."""
+    if not AUTH_TOKEN or is_authenticated(request, token):
+        target = next or "/control"
+        return RedirectResponse(url=target, status_code=status.HTTP_303_SEE_OTHER)
+
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "next_url": next or "/control",
+            "error": None,
+        },
+    )
+
+
+@app.post("/login")
+async def handle_login(request: Request):
+    """Verwerkt het ingevoerde wachtwoord en zet een beveiligde 30-dagen cookie."""
+    next_url = "/control"
+    password = ""
+
+    # Ondersteun zowel gewone HTML-form submit als JSON-post zonder externe multipart-libs
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+            password = str(body.get("password", "")).strip()
+            next_url = str(body.get("next", "/control")).strip() or "/control"
+        except Exception:
+            pass
+    else:
+        try:
+            raw_body = await request.body()
+            form_data = urllib.parse.parse_qs(raw_body.decode("utf-8"))
+            password = form_data.get("password", [""])[0].strip()
+            next_url = form_data.get("next", ["/control"])[0].strip() or "/control"
+        except Exception:
+            pass
+
+    if not AUTH_TOKEN or password == AUTH_TOKEN:
+        response = RedirectResponse(url=next_url, status_code=status.HTTP_303_SEE_OTHER)
+        if AUTH_TOKEN:
+            response.set_cookie(
+                key="auth_token",
+                value=AUTH_TOKEN,
+                max_age=30 * 24 * 3600,  # 30 dagen onthouden
+                httponly=True,
+                samesite="lax",
+                secure=False,  # Werkt via zowel HTTP lokaal als HTTPS reverse proxy
+            )
+        return response
+
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "next_url": next_url,
+            "error": "Onjuist wachtwoord. Probeer het opnieuw.",
+        },
+        status_code=status.HTTP_401_UNAUTHORIZED,
+    )
+
+
+@app.get("/logout")
+async def handle_logout():
+    """Logt de gebruiker uit en verwijdert de auth cookie."""
+    response = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    response.delete_cookie(key="auth_token")
+    return response
+
+
 @app.get("/", response_class=HTMLResponse)
 async def view_index(request: Request, token: Optional[str] = None):
     """Startpagina met snelkoppelingen naar controller en projectiescherm."""
     auth_configured = bool(AUTH_TOKEN)
-    token_valid = not auth_configured or (token == AUTH_TOKEN)
+    token_valid = is_authenticated(request, token)
+
+    if auth_configured and not token_valid:
+        return RedirectResponse(url="/login?next=/", status_code=status.HTTP_303_SEE_OTHER)
+
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
-            "token": token or "",
+            "token": token or request.cookies.get("auth_token", ""),
             "auth_configured": auth_configured,
             "token_valid": token_valid,
             "screen_count": len(manager.screen_connections),
@@ -230,16 +329,14 @@ async def view_index(request: Request, token: Optional[str] = None):
 @app.get("/screen", response_class=HTMLResponse)
 async def view_screen(request: Request, token: Optional[str] = None, debug: Optional[str] = None):
     """Projectiescherm interface voor weergave op de beamer."""
-    if AUTH_TOKEN and token != AUTH_TOKEN:
-        return HTMLResponse(
-            "<h3>Toegang geweigerd: Authenticatietoken vereist op /screen?token=...</h3>",
-            status_code=401,
-        )
+    if AUTH_TOKEN and not is_authenticated(request, token):
+        return RedirectResponse(url="/login?next=/screen", status_code=status.HTTP_303_SEE_OTHER)
+
     return templates.TemplateResponse(
         "screen.html",
         {
             "request": request,
-            "token": token or "",
+            "token": token or request.cookies.get("auth_token", ""),
             "debug": debug == "1" or DEBUG,
             "background": engine.get_background(),
         },
@@ -249,16 +346,14 @@ async def view_screen(request: Request, token: Optional[str] = None, debug: Opti
 @app.get("/control", response_class=HTMLResponse)
 async def view_control(request: Request, token: Optional[str] = None):
     """Mobiele controller interface voor smartphone."""
-    if AUTH_TOKEN and token != AUTH_TOKEN:
-        return HTMLResponse(
-            "<h3>Toegang geweigerd: Authenticatietoken vereist op /control?token=...</h3>",
-            status_code=401,
-        )
+    if AUTH_TOKEN and not is_authenticated(request, token):
+        return RedirectResponse(url="/login?next=/control", status_code=status.HTTP_303_SEE_OTHER)
+
     return templates.TemplateResponse(
         "control.html",
         {
             "request": request,
-            "token": token or "",
+            "token": token or request.cookies.get("auth_token", ""),
             "auth_configured": bool(AUTH_TOKEN),
             "status": engine.get_status(),
             "effects": engine.get_effects_list(only_configured=True),
@@ -564,9 +659,11 @@ async def api_disable(payload: DisableRequest, authenticated: bool = Depends(ver
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """Realtime communicatie tussen controller, server en beamer."""
-    # Check optioneel token via query params
+    # Check optioneel token via query params of cookie
     query_token = websocket.query_params.get("token", "")
-    if AUTH_TOKEN and query_token != AUTH_TOKEN:
+    cookie_token = websocket.cookies.get("auth_token", "")
+    client_token = query_token or cookie_token
+    if AUTH_TOKEN and client_token != AUTH_TOKEN:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         logger.warning("WebSocket verbinding geweigerd: ongeldig token.")
         return

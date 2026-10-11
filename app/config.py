@@ -13,9 +13,9 @@ HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8088"))
 DEBUG = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
 
-# Beveiliging: optioneel authenticatietoken
+# Beveiliging: optioneel authenticatietoken of wachtwoord
 # Indien leeg: onbeveiligde LAN-modus (duidelijk weergegeven in de UI)
-AUTH_TOKEN = os.getenv("AUTH_TOKEN", "").strip()
+AUTH_TOKEN = os.getenv("AUTH_TOKEN", os.getenv("PASSWORD", "")).strip()
 
 # Timing en effectparameters
 COOLDOWN_SECONDS = float(os.getenv("COOLDOWN_SECONDS", "0.0"))
