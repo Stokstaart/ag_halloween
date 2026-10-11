@@ -154,10 +154,22 @@
     const grid = effectsGrid || document.querySelector('.effects-grid');
     const randomBtn = document.querySelector('.btn-effect.btn-random');
 
-    effects.forEach(eff => {
+    // Alleen effecten tonen waarvoor daadwerkelijk een mediabestand op schijf staat
+    const configuredEffects = effects.filter(eff => eff.configured && eff.file_exists);
+    const configuredIds = new Set(configuredEffects.map(eff => eff.id));
+
+    // Verwijder knoppen die geen bestand (meer) hebben op schijf
+    document.querySelectorAll('.btn-effect[data-effect-id]').forEach(btn => {
+      const id = btn.dataset.effectId;
+      if (!configuredIds.has(id)) {
+        btn.remove();
+      }
+    });
+
+    configuredEffects.forEach(eff => {
       let btn = document.querySelector(`.btn-effect[data-effect-id="${eff.id}"]`);
       if (!btn && grid) {
-        // Maak dynamische knop aan voor nieuw gevonden jumpscare
+        // Maak knop aan voor gevonden jumpscare/effect
         btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn-effect';
@@ -192,19 +204,6 @@
         const metaSpan = btn.querySelector('.effect-meta');
         if (metaSpan && eff.duration) {
           metaSpan.textContent = `${(eff.type || 'Fullscreen').toUpperCase()} • ${Math.round(eff.duration)}s`;
-        }
-        if (eff.configured) {
-          btn.classList.remove('unconfigured');
-          const badge = btn.querySelector('.unconfigured-badge');
-          if (badge) badge.remove();
-        } else {
-          btn.classList.add('unconfigured');
-          if (!btn.querySelector('.unconfigured-badge')) {
-            const badge = document.createElement('span');
-            badge.className = 'unconfigured-badge';
-            badge.textContent = 'GEEN BESTAND';
-            btn.appendChild(badge);
-          }
         }
       }
     });

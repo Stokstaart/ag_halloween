@@ -408,12 +408,14 @@ class EffectEngine:
 
         return dynamic_list
 
-    def get_effects_list(self) -> List[Dict[str, Any]]:
+    def get_effects_list(self, only_configured: bool = False) -> List[Dict[str, Any]]:
         """Geeft alle effecten terug met hun configuratiestatus, inclusief dynamische effecten."""
         self.load_configuration()
         result = []
         for effect_id, item in self.effects.items():
             file_path, exists, web_url = self._resolve_effect_file(item)
+            if only_configured and not exists:
+                continue
             if exists:
                 duration = self._calculate_effect_duration(file_path, fallback=float(item.get("duration", 10.0)))
                 raw_duration = self._get_media_duration(file_path)

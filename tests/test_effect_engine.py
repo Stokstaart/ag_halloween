@@ -84,6 +84,11 @@ def test_configuration_loading_and_file_existence(temp_env):
     assert zombie["file_exists"] is False
     assert zombie["web_url"] is None
 
+    # Alleen geconfigureerde effecten opvragen (zoals voor controller)
+    configured_only = engine.get_effects_list(only_configured=True)
+    assert len(configured_only) == 1
+    assert configured_only[0]["id"] == "ghost_attack"
+
 
 def test_trigger_and_cooldown(temp_env):
     """Test start van effect en cooldown validatie."""

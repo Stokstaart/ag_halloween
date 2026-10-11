@@ -77,31 +77,30 @@
     <!-- Effecten Raster (Knoppen) -->
     <div class="effects-grid cols-3" id="effects-grid">
       {% for effect in effects %}
-        {% set icon_char = '🎃' %}
-        {% if effect.icon == 'skull' or 'scare' in effect.id or effect.id == 'jumpscare' %}{% set icon_char = '💀' %}
-        {% elif effect.icon == 'ghost' or 'ghost' in effect.id %}{% set icon_char = '👻' %}
-        {% elif effect.icon == 'biohazard' or effect.icon == 'zombie' or 'zombie' in effect.id %}{% set icon_char = '🧟' %}
-        {% elif effect.icon == 'eye' or effect.icon == 'eyes' or 'eyes' in effect.id %}{% set icon_char = '👁️' %}
-        {% elif effect.icon == 'claw' or effect.icon == 'scratch' or 'scratch' in effect.id %}{% set icon_char = '🐾' %}
-        {% elif effect.icon == 'spider' or 'spider' in effect.id %}{% set icon_char = '🕷️' %}
-        {% endif %}
-
-        <button
-          type="button"
-          class="btn-effect {% if not effect.configured %}unconfigured{% endif %}"
-          data-effect-id="{{ effect.id }}"
-          title="{{ effect.description }}"
-        >
-          {% if not effect.configured %}
-            <span class="unconfigured-badge">GEEN BESTAND</span>
+        {% if effect.configured and effect.file_exists %}
+          {% set icon_char = '🎃' %}
+          {% if effect.icon == 'skull' or 'scare' in effect.id or effect.id == 'jumpscare' %}{% set icon_char = '💀' %}
+          {% elif effect.icon == 'ghost' or 'ghost' in effect.id %}{% set icon_char = '👻' %}
+          {% elif effect.icon == 'biohazard' or effect.icon == 'zombie' or 'zombie' in effect.id %}{% set icon_char = '🧟' %}
+          {% elif effect.icon == 'eye' or effect.icon == 'eyes' or 'eyes' in effect.id %}{% set icon_char = '👁️' %}
+          {% elif effect.icon == 'claw' or effect.icon == 'scratch' or 'scratch' in effect.id %}{% set icon_char = '🐾' %}
+          {% elif effect.icon == 'spider' or 'spider' in effect.id %}{% set icon_char = '🕷️' %}
           {% endif %}
-          <span class="effect-icon">{{ icon_char }}</span>
-          <span class="effect-name">{{ effect.name }}</span>
-          <span class="effect-meta">
-            {{ effect.type|capitalize }} • {{ effect.duration|int }}s
-            {% if not effect.has_audio %}• Stil{% endif %}
-          </span>
-        </button>
+
+          <button
+            type="button"
+            class="btn-effect"
+            data-effect-id="{{ effect.id }}"
+            title="{{ effect.description }}"
+          >
+            <span class="effect-icon">{{ icon_char }}</span>
+            <span class="effect-name">{{ effect.name }}</span>
+            <span class="effect-meta">
+              {{ effect.type|capitalize }} • {{ effect.duration|int }}s
+              {% if not effect.has_audio %}• Stil{% endif %}
+            </span>
+          </button>
+        {% endif %}
       {% endfor %}
 
       <!-- 6. Random Scare Knop -->

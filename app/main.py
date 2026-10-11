@@ -197,7 +197,7 @@ async def view_control(request: Request, token: Optional[str] = None):
             "token": token or "",
             "auth_configured": bool(AUTH_TOKEN),
             "status": engine.get_status(),
-            "effects": engine.get_effects_list(),
+            "effects": engine.get_effects_list(only_configured=True),
             "sounds": engine.get_sound_effects_list(),
             "background": engine.get_background(),
         },
@@ -227,12 +227,12 @@ async def api_status(authenticated: bool = Depends(verify_token)):
 
 
 @app.get("/api/effects")
-async def api_effects(authenticated: bool = Depends(verify_token)):
+async def api_effects(configured_only: bool = False, authenticated: bool = Depends(verify_token)):
     """Haalt de actuele lijst van effecten, geluidseffecten en achtergrondconfiguratie op."""
     return {
         "background": engine.get_background(),
         "backgrounds": engine.get_background_list(),
-        "effects": engine.get_effects_list(),
+        "effects": engine.get_effects_list(only_configured=configured_only),
         "sounds": engine.get_sound_effects_list(),
     }
 
@@ -449,7 +449,7 @@ async def websocket_endpoint(websocket: WebSocket):
         await manager.send_personal(websocket, {
             "type": "init",
             "status": engine.get_status(),
-            "effects": engine.get_effects_list(),
+            "effects": engine.get_effects_list(only_configured=True),
             "sounds": engine.get_sound_effects_list(),
             "background": engine.get_background(),
             "backgrounds": engine.get_background_list(),
