@@ -134,6 +134,10 @@ class BackgroundRequest(BaseModel):
     filename: Optional[str] = Field(None, description="Alternatieve bestandsnaam")
 
 
+class SoundRequest(BaseModel):
+    sound_id: str = Field(..., description="ID of bestandsnaam van het geluidseffect")
+
+
 # ==========================================
 # HTML Views
 # ==========================================
@@ -192,9 +196,11 @@ async def view_control(request: Request, token: Optional[str] = None):
             "auth_configured": bool(AUTH_TOKEN),
             "status": engine.get_status(),
             "effects": engine.get_effects_list(),
+            "sounds": engine.get_sound_effects_list(),
             "background": engine.get_background(),
         },
     )
+
 
 
 # ==========================================
@@ -220,12 +226,44 @@ async def api_status(authenticated: bool = Depends(verify_token)):
 
 @app.get("/api/effects")
 async def api_effects(authenticated: bool = Depends(verify_token)):
-    """Haalt de actuele lijst van effecten en achtergrondconfiguratie op."""
+    """Haalt de actuele lijst van effecten, geluidseffecten en achtergrondconfiguratie op."""
     return {
         "background": engine.get_background(),
         "backgrounds": engine.get_background_list(),
         "effects": engine.get_effects_list(),
+        "sounds": engine.get_sound_effects_list(),
     }
+
+
+@app.get("/api/sounds")
+async def api_sounds(authenticated: bool = Depends(verify_token)):
+    """Haalt alle beschikbare geluidseffecten (.mp3, .wav, etc.) op."""
+    return {
+        "sounds": engine.get_sound_effects_list(),
+    }
+
+
+@app.post("/api/sound")
+async def api_play_sound(payload: SoundRequest, authenticated: bool = Depends(verify_token)):
+    """Speelt een los geluidseffect af op de beamer(s) overlappend met de video."""
+    success, reason, sound_payload = engine.trigger_sound_effect(payload.sound_id)
+    if not success:
+        raise HTTPException(status_code=400, detail=reason)
+
+    # Broadcast naar alle beamer schermen om overlappend af te spelen
+    await manager.broadcast_to_screens({
+        "type": "play_sound",
+        **sound_payload,
+    })
+
+    # Broadcast naar controllers ter notificatie
+    await manager.broadcast_to_controllers({
+        "type": "sound_triggered",
+        **sound_payload,
+    })
+
+    return {"success": True, "message": "Geluidseffect gestart", "sound": sound_payload}
+
 
 
 @app.get("/api/backgrounds")
@@ -386,10 +424,12 @@ async def websocket_endpoint(websocket: WebSocket):
             "type": "init",
             "status": engine.get_status(),
             "effects": engine.get_effects_list(),
+            "sounds": engine.get_sound_effects_list(),
             "background": engine.get_background(),
             "backgrounds": engine.get_background_list(),
             "screen_count": len(manager.screen_connections),
         })
+
 
     try:
         while True:
@@ -505,7 +545,36 @@ async def websocket_endpoint(websocket: WebSocket):
                             "reason": reason,
                         })
 
+                elif action in ("play_sound", "trigger_sound"):
+                    sound_id = data.get("sound_id")
+                    logger.info("Geluidseffect commando ontvangen: %s", sound_id)
+                    success, reason, sound_payload = engine.trigger_sound_effect(sound_id)
+                    if success:
+                        await manager.send_personal(websocket, {
+                            "type": "sound_ack",
+                            "success": True,
+                            "sound_id": sound_payload["sound_id"],
+                            "name": sound_payload["name"],
+                        })
+                        await manager.broadcast_to_screens({
+                            "type": "play_sound",
+                            **sound_payload,
+                        })
+                        await manager.broadcast_to_controllers({
+                            "type": "sound_triggered",
+                            **sound_payload,
+                        })
+                    else:
+                        logger.warning("Geluidseffect geweigerd: %s", reason)
+                        await manager.send_personal(websocket, {
+                            "type": "sound_ack",
+                            "success": False,
+                            "sound_id": sound_id,
+                            "reason": reason,
+                        })
+
                 elif action in ("stop", "return_to_background"):
+
                     result = engine.stop_effect()
                     await manager.broadcast_to_screens({"type": "stop_effect"})
                     await manager.broadcast_to_controllers({"type": "effect_stopped"})

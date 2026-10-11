@@ -34,8 +34,10 @@
   const btnChangeBg = document.getElementById('btn-change-bg');
   const bgActiveName = document.getElementById('bg-active-name');
   const effectsGrid = document.getElementById('effects-grid');
+  const soundsGrid = document.getElementById('sounds-grid');
 
   let cachedBackgrounds = [];
+  let cachedSounds = [];
 
   // Token uit query params
   const urlParams = new URLSearchParams(window.location.search);
@@ -203,6 +205,64 @@
     });
   }
 
+  // Geluidseffecten knoppen genereren en bijwerken
+  function renderSounds(sounds) {
+    if (!soundsGrid) return;
+    if (!sounds || !Array.isArray(sounds) || sounds.length === 0) {
+      if (soundsGrid.children.length === 0 || soundsGrid.querySelector('.btn-sound') === null) {
+        soundsGrid.innerHTML = `
+          <div class="no-sounds-hint" id="no-sounds-hint">
+            <span>ℹ️ Geen MP3's gevonden.</span><br>
+            Plaats <code>.mp3</code> bestanden in <code>media/effects/music/</code> of <code>media/audio/</code>.
+          </div>
+        `;
+      }
+      return;
+    }
+
+    cachedSounds = sounds;
+    const noSoundsHint = document.getElementById('no-sounds-hint');
+    if (noSoundsHint) noSoundsHint.remove();
+
+    sounds.forEach(snd => {
+      let btn = soundsGrid.querySelector(`.btn-sound[data-sound-id="${snd.id}"]`);
+      if (!btn) {
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-sound';
+        btn.dataset.soundId = snd.id;
+        btn.title = snd.filename || snd.name;
+        btn.innerHTML = `
+          <span class="sound-icon">${snd.icon || '🔊'}</span>
+          <span class="sound-name">${snd.name}</span>
+        `;
+        btn.addEventListener('click', () => handleSoundClick(btn));
+        soundsGrid.appendChild(btn);
+      } else {
+        const nameSpan = btn.querySelector('.sound-name');
+        if (nameSpan) nameSpan.textContent = snd.name;
+      }
+    });
+  }
+
+  // Klikafhandeling voor geluidseffecten
+  function handleSoundClick(btn) {
+    vibrate(30);
+    const soundId = btn.dataset.soundId;
+    if (!soundId) return;
+
+    if (effectsDisabled) {
+      showToast('Effecten zijn momenteel uitgeschakeld.', true);
+      return;
+    }
+
+    // Visuele feedback op de knop
+    btn.classList.add('playing');
+    setTimeout(() => btn.classList.remove('playing'), 600);
+
+    sendCommand('play_sound', { sound_id: soundId });
+  }
+
   // Berichtafhandeling
   function handleMessage(data) {
     const type = data.type;
@@ -215,6 +275,9 @@
       }
       if (data.effects) {
         renderEffects(data.effects);
+      }
+      if (data.sounds) {
+        renderSounds(data.sounds);
       }
       if (data.status) {
         if (data.status.volume !== undefined) setVolumeUI(data.status.volume);
@@ -240,6 +303,20 @@
       if (!data.success) {
         showToast(data.reason || 'Kan achtergrond niet wisselen.', true);
       }
+    } else if (type === 'sound_ack') {
+      if (data.success) {
+        vibrate(40);
+        showToast(`🔊 Geluid: ${data.name || data.sound_id}`);
+      } else {
+        showToast(data.reason || 'Kan geluid niet starten.', true);
+      }
+    } else if (type === 'sound_triggered') {
+      // Optionele visuele feedback als een andere controller een sound startte
+      const btn = soundsGrid ? soundsGrid.querySelector(`.btn-sound[data-sound-id="${data.sound_id}"]`) : null;
+      if (btn) {
+        btn.classList.add('playing');
+        setTimeout(() => btn.classList.remove('playing'), 600);
+      }
     } else if (type === 'trigger_ack') {
       if (data.success) {
         vibrate(50);
@@ -248,6 +325,7 @@
         vibrate([30, 50, 30]);
         showToast(data.reason || 'Kan effect niet starten.', true);
       }
+
     } else if (type === 'effect_active') {
       startActiveBanner(data.name || data.effect_id, data.duration || 10);
     } else if (type === 'effect_stopped') {
@@ -365,6 +443,25 @@
       .catch(() => {
         showToast('Kan server niet bereiken.', true);
       });
+    } else if (action === 'play_sound') {
+      const soundUrl = '/api/sound' + (token ? '?token=' + encodeURIComponent(token) : '');
+      fetch(soundUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sound_id: payload.sound_id })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          vibrate(40);
+          showToast(`🔊 Geluid: ${data.sound?.name || payload.sound_id}`);
+        } else {
+          showToast(data.detail || 'Kan geluid niet starten.', true);
+        }
+      })
+      .catch(() => {
+        showToast('Kan server niet bereiken.', true);
+      });
     } else if (action === 'stop') {
       const stopUrl = '/api/stop' + (token ? '?token=' + encodeURIComponent(token) : '');
       fetch(stopUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
@@ -373,6 +470,7 @@
     } else {
       showToast('Niet verbonden met server. Even geduld...', true);
     }
+
   }
 
   // Klikafhandeling voor effectknoppen
@@ -577,18 +675,19 @@
   window.addEventListener('DOMContentLoaded', () => {
     connectWebSocket();
 
-    // Haal initiële achtergronden en effecten direct op
+    // Haal initiële achtergronden, effecten en geluiden direct op
     fetch('/api/effects' + (token ? '?token=' + encodeURIComponent(token) : ''))
       .then(res => res.json())
       .then(data => {
         if (data) {
           if (data.backgrounds) renderBackgrounds(data.backgrounds, data.background);
           if (data.effects) renderEffects(data.effects);
+          if (data.sounds) renderSounds(data.sounds);
         }
       })
       .catch(() => {});
 
-    // Periodieke controle om nieuwe effecten & achtergronden automatisch te activeren
+    // Periodieke controle om nieuwe effecten, achtergronden & geluiden automatisch te activeren
     setInterval(() => {
       fetch('/api/effects' + (token ? '?token=' + encodeURIComponent(token) : ''))
         .then(res => res.json())
@@ -596,9 +695,11 @@
           if (data) {
             if (data.backgrounds) renderBackgrounds(data.backgrounds, data.background);
             if (data.effects) renderEffects(data.effects);
+            if (data.sounds) renderSounds(data.sounds);
           }
         })
         .catch(() => {});
     }, 4000);
   });
 })();
+

@@ -119,8 +119,38 @@
       </button>
     </div>
 
+    <!-- 🎵 Geluidseffecten (Overlappend Audio) -->
+    <div class="controls-card sound-effects-card">
+      <div class="sound-card-header">
+        <div class="controls-card-title" style="margin-bottom: 0;">🔊 Geluidseffecten (Overlap)</div>
+        <span class="sound-hint">Speelt over de video heen</span>
+      </div>
+
+      <div class="sounds-grid" id="sounds-grid">
+        {% if sounds and sounds|length > 0 %}
+          {% for snd in sounds %}
+            <button
+              type="button"
+              class="btn-sound"
+              data-sound-id="{{ snd.id }}"
+              title="{{ snd.filename }}"
+            >
+              <span class="sound-icon">{{ snd.icon or '🔊' }}</span>
+              <span class="sound-name">{{ snd.name }}</span>
+            </button>
+          {% endfor %}
+        {% else %}
+          <div class="no-sounds-hint" id="no-sounds-hint">
+            <span>ℹ️ Geen MP3's gevonden.</span><br>
+            Plaats <code>.mp3</code> bestanden in <code>media/effects/music/</code> of <code>media/audio/</code>.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
     <!-- 8. Audio Regeling & Opties -->
     <div class="controls-card">
+
       <div class="controls-card-title">Geluids- &amp; Systeembediening</div>
 
       <div class="volume-row">

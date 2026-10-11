@@ -559,6 +559,107 @@ class EffectEngine:
         chosen = random.choice(configured_effects)
         return self.trigger_effect(chosen["id"], force=force)
 
+    def get_sound_effects_list(self) -> List[Dict[str, Any]]:
+        """Scant mediadirectories naar losse geluidseffecten (.mp3, .wav, .ogg, .aac)."""
+        AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg", ".aac", ".flac", ".m4a"}
+        search_dirs = [
+            (self.media_dir / "effects" / "music", "media/effects/music"),
+            (self.media_dir / "music", "media/music"),
+            (self.media_dir / "audio", "media/audio"),
+            (self.media_dir / "effects", "media/effects"),
+        ]
+
+        results: List[Dict[str, Any]] = []
+        seen_filenames = set()
+
+        import re
+        for folder_path, rel_prefix in search_dirs:
+            if not folder_path.is_dir():
+                continue
+
+            for f in sorted(folder_path.iterdir()):
+                if (f.is_file() and 
+                    f.suffix.lower() in AUDIO_EXTENSIONS and 
+                    f.stat().st_size > 0 and
+                    not f.name.endswith(".dwsupload") and
+                    not f.name.endswith(".part") and
+                    not f.name.endswith(".tmp")):
+
+                    lower_name = f.name.lower()
+                    if lower_name in seen_filenames:
+                        continue
+                    seen_filenames.add(lower_name)
+
+                    stem = f.stem
+                    sound_id = f"sound_{re.sub(r'[^a-zA-Z0-9_]', '_', stem).lower()}"
+                    rel_path = f"{rel_prefix}/{f.name}"
+                    _, web_url = self._check_file_exists(rel_path)
+
+                    # Bepaal passend icoon op basis van bestandsnaam
+                    stem_lower = stem.lower()
+                    if any(k in stem_lower for k in ["scream", "schreeuw"]):
+                        icon = "😱"
+                    elif any(k in stem_lower for k in ["thunder", "donder", "lightning", "bliksem"]):
+                        icon = "⚡"
+                    elif any(k in stem_lower for k in ["howl", "wolf"]):
+                        icon = "🐺"
+                    elif any(k in stem_lower for k in ["laugh", "lach"]):
+                        icon = "😈"
+                    elif any(k in stem_lower for k in ["bell", "klok", "chime"]):
+                        icon = "🔔"
+                    elif any(k in stem_lower for k in ["music", "theme", "muziek", "song"]):
+                        icon = "🎵"
+                    elif any(k in stem_lower for k in ["whisper", "fluister", "wind"]):
+                        icon = "💨"
+                    elif any(k in stem_lower for k in ["creak", "kraak", "door", "deur"]):
+                        icon = "🚪"
+                    elif any(k in stem_lower for k in ["chains", "ketting"]):
+                        icon = "⛓️"
+                    else:
+                        icon = "🔊"
+
+                    display_name = stem.replace("_", " ").replace("-", " ").title()
+
+                    results.append({
+                        "id": sound_id,
+                        "name": display_name,
+                        "filename": f.name,
+                        "file": rel_path,
+                        "web_url": web_url,
+                        "icon": icon,
+                        "file_exists": True,
+                        "configured": True,
+                    })
+
+        return results
+
+    def get_sound_effect(self, sound_id: str) -> Optional[Dict[str, Any]]:
+        """Haalt een specifiek geluidseffect op."""
+        clean_id = sound_id.lower().strip()
+        for snd in self.get_sound_effects_list():
+            if snd["id"].lower() == clean_id or snd["filename"].lower() == clean_id:
+                return snd
+        return None
+
+    def trigger_sound_effect(self, sound_id: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        """Triggert een los geluidseffect zonder het actieve video-effect te onderbreken."""
+        if self.disabled:
+            return False, "Effecten zijn momenteel uitgeschakeld.", None
+
+        sound = self.get_sound_effect(sound_id)
+        if not sound:
+            return False, f"Geluidseffect '{sound_id}' niet gevonden.", None
+
+        payload = {
+            "sound_id": sound["id"],
+            "name": sound["name"],
+            "filename": sound["filename"],
+            "web_url": sound["web_url"],
+            "volume": self.volume if not self.muted else 0.0,
+            "muted": self.muted,
+        }
+        return True, "Geluidseffect gestart", payload
+
     def stop_effect(self) -> Dict[str, Any]:
         """Stopt direct het actieve effect en keert terug naar de achtergrond."""
         stopped_id = self.active_effect_id
@@ -606,3 +707,4 @@ class EffectEngine:
             "can_trigger": can,
             "reason": reason,
         }
+

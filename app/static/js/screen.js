@@ -33,6 +33,8 @@
   let isMuted = false;
   let backgroundConfig = null;
   let currentOverlapHandler = null;
+  const activeSoundEffects = new Set();
+
 
   // Toggle debug HUD
   function updateDebugHud() {
@@ -359,6 +361,15 @@
       } catch (e) {}
       effectVideo.className = 'video-layer';
 
+      // 1b. Stop ook alle actieve overlappende geluidseffecten
+      activeSoundEffects.forEach(snd => {
+        try {
+          snd.pause();
+          snd.currentTime = 0;
+        } catch (e) {}
+      });
+      activeSoundEffects.clear();
+
       // 2. Direct achtergrond herstellen
       if (activeBgVideo) {
         activeBgVideo.style.opacity = '1';
@@ -517,6 +528,9 @@
       if (data.volume !== undefined) currentVolume = data.volume;
       if (data.muted !== undefined) isMuted = !!data.muted;
       setupBackground(data.background);
+    } else if (type === 'play_sound') {
+      console.info('play_sound signaal ontvangen:', data);
+      playSoundEffect(data);
     } else if (type === 'play_effect' || type === 'fullscreen' || type === 'overlay' || data.web_url) {
       console.info('play_effect signaal ontvangen:', data);
       playEffect(data);
@@ -538,9 +552,55 @@
         effectVideo.volume = isMuted ? 0 : currentVolume;
         effectVideo.muted = isMuted;
       }
+      // Werk volume bij voor alle actieve geluidseffecten
+      activeSoundEffects.forEach(snd => {
+        try {
+          snd.volume = isMuted ? 0 : currentVolume;
+          snd.muted = isMuted;
+        } catch (e) {}
+      });
       updateDebugHud();
     }
   }
+
+  // Speelt een geluidseffect overlappend af via een dynamische Audio instantie
+  function playSoundEffect(soundData) {
+    if (!soundData || !soundData.web_url) return;
+
+    if (unlockOverlay) {
+      unlockOverlay.classList.add('hidden');
+    }
+
+    try {
+      const audio = new Audio(soundData.web_url);
+      audio.volume = isMuted ? 0 : (soundData.volume !== undefined ? soundData.volume : currentVolume);
+      audio.muted = isMuted;
+
+      activeSoundEffects.add(audio);
+
+      const cleanup = () => {
+        activeSoundEffects.delete(audio);
+        audio.removeEventListener('ended', cleanup);
+        audio.removeEventListener('error', cleanup);
+      };
+
+      audio.addEventListener('ended', cleanup);
+      audio.addEventListener('error', (err) => {
+        console.warn('Fout bij afspelen van sound effect:', soundData.name, err);
+        cleanup();
+      });
+
+      audio.play().then(() => {
+        console.info('Sound effect speelt overlappend:', soundData.name);
+      }).catch(err => {
+        console.warn('Autoplay beleid waarschuwing voor sound effect:', err);
+        cleanup();
+      });
+    } catch (e) {
+      console.error('Fout bij initialiseren van Audio() voor sound effect:', e);
+    }
+  }
+
 
   // Heartbeat ping om verbinding levend te houden
   setInterval(() => {
