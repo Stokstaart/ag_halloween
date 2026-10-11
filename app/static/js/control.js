@@ -492,6 +492,47 @@
     });
   }
 
+  // Kolommen layout schakelaar (3 of 4 kolommen)
+  const btnCol3 = document.getElementById('btn-col-3');
+  const btnCol4 = document.getElementById('btn-col-4');
+
+  function setGridColumns(cols) {
+    const grid = effectsGrid || document.getElementById('effects-grid');
+    if (!grid) return;
+    if (cols === 4) {
+      grid.classList.add('cols-4');
+      grid.classList.remove('cols-3');
+      if (btnCol4) btnCol4.classList.add('active');
+      if (btnCol3) btnCol3.classList.remove('active');
+      try { localStorage.setItem('halloween_grid_cols', '4'); } catch (e) {}
+    } else {
+      grid.classList.add('cols-3');
+      grid.classList.remove('cols-4');
+      if (btnCol3) btnCol3.classList.add('active');
+      if (btnCol4) btnCol4.classList.remove('active');
+      try { localStorage.setItem('halloween_grid_cols', '3'); } catch (e) {}
+    }
+  }
+
+  if (btnCol3) {
+    btnCol3.addEventListener('click', () => {
+      vibrate(20);
+      setGridColumns(3);
+    });
+  }
+  if (btnCol4) {
+    btnCol4.addEventListener('click', () => {
+      vibrate(20);
+      setGridColumns(4);
+    });
+  }
+
+  // Laad opgeslagen kolomvoorkeur (standaard 3 kolommen)
+  try {
+    const savedCols = parseInt(localStorage.getItem('halloween_grid_cols') || '3', 10);
+    setGridColumns(savedCols === 4 ? 4 : 3);
+  } catch (e) {}
+
   function syncServerStatus() {
     fetch('/api/status' + (token ? '?token=' + encodeURIComponent(token) : ''))
       .then(res => res.json())

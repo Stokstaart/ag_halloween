@@ -65,8 +65,17 @@
       <span>Return to Background (Noodstop)</span>
     </button>
 
+    <!-- Sectie Header met 3 / 4 Kolommen Schakelaar -->
+    <div class="grid-header-row">
+      <div class="grid-header-title">👻 Jumpscares &amp; Effecten</div>
+      <div class="layout-toggle-group" aria-label="Aantal kolommen">
+        <button type="button" class="btn-layout active" id="btn-col-3" data-cols="3">3 kolommen</button>
+        <button type="button" class="btn-layout" id="btn-col-4" data-cols="4">4 kolommen</button>
+      </div>
+    </div>
+
     <!-- Effecten Raster (Knoppen) -->
-    <div class="effects-grid" id="effects-grid">
+    <div class="effects-grid cols-3" id="effects-grid">
       {% for effect in effects %}
         {% set icon_char = '🎃' %}
         {% if effect.icon == 'skull' or 'scare' in effect.id or effect.id == 'jumpscare' %}{% set icon_char = '💀' %}
