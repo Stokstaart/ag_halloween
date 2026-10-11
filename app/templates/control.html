@@ -153,6 +153,7 @@
 
       <div class="controls-card-title">Geluids- &amp; Systeembediening</div>
 
+      <div class="volume-section-label">🎬 Video Volume (Achtergrond &amp; Jumpscares)</div>
       <div class="volume-row">
         <!-- 8. Mute / Unmute Knop -->
         <button id="btn-mute" class="btn-mute" type="button" title="Dempen / Dempen opheffen">
@@ -165,10 +166,26 @@
           min="0"
           max="100"
           value="100"
-          title="Effectvolume"
+          title="Video Volume"
         >
         <span id="volume-val" class="volume-val">100%</span>
       </div>
+
+      <div class="volume-section-label" style="margin-top: 0.75rem;">🎵 Sound Effects Volume (.mp3)</div>
+      <div class="volume-row">
+        <span class="volume-icon-badge">🎶</span>
+        <input
+          id="sound-volume-slider"
+          class="volume-slider slider-purple"
+          type="range"
+          min="0"
+          max="100"
+          value="100"
+          title="Sound Effects Volume"
+        >
+        <span id="sound-volume-val" class="volume-val">100%</span>
+      </div>
+
 
       <!-- Tijdelijk Uitschakelen Toggle -->
       <div class="toggle-row">

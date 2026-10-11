@@ -11,9 +11,11 @@
   let activeEffectTimer = null;
   let cooldownTimer = null;
   let currentVolume = 1.0;
+  let currentSoundVolume = 1.0;
   let isMuted = false;
   let effectsDisabled = false;
   let screensConnected = 0;
+  const activeSoundIds = new Set();
 
   // DOM elementen
   const connectionDot = document.getElementById('connection-dot');
@@ -26,6 +28,8 @@
   const cooldownRemaining = document.getElementById('cooldown-remaining');
   const volumeSlider = document.getElementById('volume-slider');
   const volumeVal = document.getElementById('volume-val');
+  const soundVolumeSlider = document.getElementById('sound-volume-slider');
+  const soundVolumeVal = document.getElementById('sound-volume-val');
   const btnMute = document.getElementById('btn-mute');
   const toggleDisabled = document.getElementById('toggle-disabled');
   const btnEmergency = document.getElementById('btn-emergency');
@@ -38,6 +42,7 @@
 
   let cachedBackgrounds = [];
   let cachedSounds = [];
+
 
   // Token uit query params
   const urlParams = new URLSearchParams(window.location.search);
@@ -251,7 +256,6 @@
     if (now - lastSoundClickTime < 250) return;
     lastSoundClickTime = now;
 
-    vibrate(30);
     const soundId = btn.dataset.soundId;
     if (!soundId) return;
 
@@ -260,12 +264,24 @@
       return;
     }
 
-    // Visuele feedback op de knop
-    btn.classList.add('playing');
-    setTimeout(() => btn.classList.remove('playing'), 600);
+    // Als dit specifieke geluid momenteel al actief is: STOP HET EFFECT!
+    if (activeSoundIds.has(soundId)) {
+      vibrate([40, 30]);
+      btn.classList.remove('is-active', 'playing');
+      activeSoundIds.delete(soundId);
+      sendCommand('stop_sound', { sound_id: soundId });
+      showToast(`Geluid gestopt`);
+      return;
+    }
+
+    // Anders: Start het geluidseffect en highlight de knop
+    vibrate(30);
+    btn.classList.add('is-active', 'playing');
+    activeSoundIds.add(soundId);
 
     sendCommand('play_sound', { sound_id: soundId });
   }
+
 
 
   // Berichtafhandeling
@@ -286,12 +302,14 @@
       }
       if (data.status) {
         if (data.status.volume !== undefined) setVolumeUI(data.status.volume);
+        if (data.status.sound_volume !== undefined) setSoundVolumeUI(data.status.sound_volume);
         if (data.status.muted !== undefined) setMuteUI(data.status.muted);
         if (data.status.disabled !== undefined) setDisabledUI(data.status.disabled);
         if (data.status.active_effect_id) {
           startActiveBanner(data.status.active_effect_id, 15);
         }
       }
+
     } else if (type === 'connection_stats') {
       screensConnected = data.screen_count || 0;
       updateScreenStatus();
@@ -313,14 +331,22 @@
         vibrate(40);
         showToast(`🔊 Geluid: ${data.name || data.sound_id}`);
       } else {
+        const btn = soundsGrid ? soundsGrid.querySelector(`.btn-sound[data-sound-id="${data.sound_id}"]`) : null;
+        if (btn) btn.classList.remove('is-active', 'playing');
+        activeSoundIds.delete(data.sound_id);
         showToast(data.reason || 'Kan geluid niet starten.', true);
       }
     } else if (type === 'sound_triggered') {
-      // Optionele visuele feedback als een andere controller een sound startte
+      activeSoundIds.add(data.sound_id);
       const btn = soundsGrid ? soundsGrid.querySelector(`.btn-sound[data-sound-id="${data.sound_id}"]`) : null;
       if (btn) {
-        btn.classList.add('playing');
-        setTimeout(() => btn.classList.remove('playing'), 600);
+        btn.classList.add('is-active', 'playing');
+      }
+    } else if (type === 'sound_stopped') {
+      activeSoundIds.delete(data.sound_id);
+      const btn = soundsGrid ? soundsGrid.querySelector(`.btn-sound[data-sound-id="${data.sound_id}"]`) : null;
+      if (btn) {
+        btn.classList.remove('is-active', 'playing');
       }
     } else if (type === 'trigger_ack') {
       if (data.success) {
@@ -340,11 +366,13 @@
       stopActiveBanner();
     } else if (type === 'volume_update') {
       if (data.volume !== undefined) setVolumeUI(data.volume);
+      if (data.sound_volume !== undefined) setSoundVolumeUI(data.sound_volume);
       if (data.muted !== undefined) setMuteUI(data.muted);
     } else if (type === 'disabled_update') {
       setDisabledUI(data.disabled);
     }
   }
+
 
   // Actief bannerbeheer
   function startActiveBanner(title, durationSeconds) {
@@ -404,6 +432,13 @@
     if (volumeSlider) volumeSlider.value = Math.round(vol * 100);
     if (volumeVal) volumeVal.textContent = `${Math.round(vol * 100)}%`;
   }
+
+  function setSoundVolumeUI(vol) {
+    currentSoundVolume = vol;
+    if (soundVolumeSlider) soundVolumeSlider.value = Math.round(vol * 100);
+    if (soundVolumeVal) soundVolumeVal.textContent = `${Math.round(vol * 100)}%`;
+  }
+
 
   function setMuteUI(muted) {
     isMuted = muted;
@@ -467,7 +502,29 @@
       .catch(() => {
         showToast('Kan server niet bereiken.', true);
       });
+    } else if (action === 'stop_sound') {
+      const stopSoundUrl = '/api/sound/stop' + (token ? '?token=' + encodeURIComponent(token) : '');
+      fetch(stopSoundUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sound_id: payload.sound_id })
+      }).catch(() => {});
+    } else if (action === 'set_sound_volume') {
+      const volUrl = '/api/volume' + (token ? '?token=' + encodeURIComponent(token) : '');
+      fetch(volUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sound_volume: payload.sound_volume !== undefined ? payload.sound_volume : payload.volume })
+      }).catch(() => {});
+    } else if (action === 'set_volume') {
+      const volUrl = '/api/volume' + (token ? '?token=' + encodeURIComponent(token) : '');
+      fetch(volUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ volume: payload.volume })
+      }).catch(() => {});
     } else if (action === 'stop') {
+
       const stopUrl = '/api/stop' + (token ? '?token=' + encodeURIComponent(token) : '');
       fetch(stopUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
         .then(() => stopActiveBanner())
@@ -584,12 +641,21 @@
     });
   }
 
-  // Volume slider
+  // Video Volume slider
   if (volumeSlider) {
     volumeSlider.addEventListener('input', (e) => {
       const vol = parseFloat(e.target.value) / 100;
       setVolumeUI(vol);
       sendCommand('set_volume', { volume: vol });
+    });
+  }
+
+  // Sound Effects Volume slider
+  if (soundVolumeSlider) {
+    soundVolumeSlider.addEventListener('input', (e) => {
+      const vol = parseFloat(e.target.value) / 100;
+      setSoundVolumeUI(vol);
+      sendCommand('set_sound_volume', { sound_volume: vol });
     });
   }
 
@@ -600,6 +666,7 @@
       sendCommand('toggle_mute');
     });
   }
+
 
   // Disabled Toggle
   if (toggleDisabled) {
@@ -662,6 +729,9 @@
           updateScreenStatus();
         }
         if (data.engine) {
+          if (data.engine.volume !== undefined) setVolumeUI(data.engine.volume);
+          if (data.engine.sound_volume !== undefined) setSoundVolumeUI(data.engine.sound_volume);
+          if (data.engine.muted !== undefined) setMuteUI(data.engine.muted);
           if (data.engine.active_effect_id) {
             startActiveBanner(data.engine.active_effect_id, 15);
           } else {
@@ -671,6 +741,7 @@
       })
       .catch(() => {});
   }
+
 
   // Zorg voor onmiddellijk herstel van de verbinding en status wanneer het scherm ontwaakt op smartphone
   document.addEventListener('visibilitychange', () => {

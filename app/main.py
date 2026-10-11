@@ -121,8 +121,10 @@ class TriggerRequest(BaseModel):
 
 
 class VolumeRequest(BaseModel):
-    volume: Optional[float] = Field(None, ge=0.0, le=1.0, description="Volume tussen 0.0 en 1.0")
+    volume: Optional[float] = Field(None, ge=0.0, le=1.0, description="Video volume tussen 0.0 en 1.0")
+    sound_volume: Optional[float] = Field(None, ge=0.0, le=1.0, description="Sound effects volume tussen 0.0 en 1.0")
     muted: Optional[bool] = Field(None, description="Audio dempen of activeren")
+
 
 
 class DisableRequest(BaseModel):
@@ -265,6 +267,26 @@ async def api_play_sound(payload: SoundRequest, authenticated: bool = Depends(ve
     return {"success": True, "message": "Geluidseffect gestart", "sound": sound_payload}
 
 
+@app.post("/api/sound/stop")
+async def api_stop_sound(payload: SoundRequest, authenticated: bool = Depends(verify_token)):
+    """Stopt een specifiek geluidseffect op de beamer(s)."""
+    sound_id = payload.sound_id
+    # Broadcast stop instructie naar alle beamers
+    await manager.broadcast_to_screens({
+        "type": "stop_sound",
+        "sound_id": sound_id,
+    })
+
+    # Broadcast naar controllers
+    await manager.broadcast_to_controllers({
+        "type": "sound_stopped",
+        "sound_id": sound_id,
+    })
+
+    return {"success": True, "message": "Geluidseffect gestopt", "sound_id": sound_id}
+
+
+
 
 @app.get("/api/backgrounds")
 async def api_backgrounds(authenticated: bool = Depends(verify_token)):
@@ -366,19 +388,23 @@ async def api_effect_ended(request: Request, authenticated: bool = Depends(verif
 
 @app.post("/api/volume")
 async def api_volume(payload: VolumeRequest, authenticated: bool = Depends(verify_token)):
-    """Past volume of dempstatus aan."""
+    """Past video volume, sound effects volume of dempstatus aan."""
     if payload.volume is not None:
         engine.set_volume(payload.volume)
+    if payload.sound_volume is not None:
+        engine.set_sound_volume(payload.sound_volume)
     if payload.muted is not None:
         engine.set_muted(payload.muted)
 
     status_update = {
         "type": "volume_update",
         "volume": engine.volume,
+        "sound_volume": engine.sound_volume,
         "muted": engine.muted,
     }
     await manager.broadcast_all(status_update)
-    return {"success": True, "volume": engine.volume, "muted": engine.muted}
+    return {"success": True, "volume": engine.volume, "sound_volume": engine.sound_volume, "muted": engine.muted}
+
 
 
 @app.post("/api/disable")
@@ -471,8 +497,14 @@ async def websocket_endpoint(websocket: WebSocket):
                         "message": err_msg,
                     })
 
+                elif action == "sound_ended":
+                    sound_id = data.get("sound_id")
+                    logger.info("Projectiescherm meldt voltooiing van geluidseffect: %s", sound_id)
+                    await manager.broadcast_to_controllers({"type": "sound_stopped", "sound_id": sound_id})
+
                 elif action == "screen_ping":
                     await manager.send_personal(websocket, {"type": "screen_pong"})
+
 
             # --- Commando's vanaf de mobiele controller ---
             else:
@@ -573,6 +605,18 @@ async def websocket_endpoint(websocket: WebSocket):
                             "reason": reason,
                         })
 
+                elif action in ("stop_sound", "sound_stop"):
+                    sound_id = data.get("sound_id")
+                    logger.info("Controller vraagt stoppen van geluidseffect: %s", sound_id)
+                    await manager.broadcast_to_screens({
+                        "type": "stop_sound",
+                        "sound_id": sound_id,
+                    })
+                    await manager.broadcast_to_controllers({
+                        "type": "sound_stopped",
+                        "sound_id": sound_id,
+                    })
+
                 elif action in ("stop", "return_to_background"):
 
                     result = engine.stop_effect()
@@ -585,6 +629,17 @@ async def websocket_endpoint(websocket: WebSocket):
                     await manager.broadcast_all({
                         "type": "volume_update",
                         "volume": engine.volume,
+                        "sound_volume": engine.sound_volume,
+                        "muted": engine.muted,
+                    })
+
+                elif action == "set_sound_volume":
+                    vol = data.get("volume") if data.get("volume") is not None else data.get("sound_volume", 1.0)
+                    engine.set_sound_volume(vol)
+                    await manager.broadcast_all({
+                        "type": "volume_update",
+                        "volume": engine.volume,
+                        "sound_volume": engine.sound_volume,
                         "muted": engine.muted,
                     })
 
@@ -593,8 +648,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     await manager.broadcast_all({
                         "type": "volume_update",
                         "volume": engine.volume,
+                        "sound_volume": engine.sound_volume,
                         "muted": engine.muted,
                     })
+
 
                 elif action == "set_disabled":
                     val = bool(data.get("disabled", False))

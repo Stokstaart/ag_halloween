@@ -34,11 +34,13 @@ class EffectEngine:
         self.active_effect_started_at: Optional[float] = None
         self.last_effect_ended_at: float = 0.0
         self.disabled: bool = False
-        self.volume: float = 1.0  # 0.0 - 1.0
+        self.volume: float = 1.0  # 0.0 - 1.0 (video volume)
+        self.sound_volume: float = 1.0  # 0.0 - 1.0 (losse sound effects volume)
         self.muted: bool = False
         self._duration_cache: Dict[str, Tuple[float, float]] = {}
 
         self.load_configuration()
+
 
     def _get_media_duration(self, file_path: Union[str, Path]) -> Optional[float]:
         """Leest de exacte duur van een videobestand (MP4/WebM) in seconden via box header parsing."""
@@ -655,7 +657,8 @@ class EffectEngine:
             "name": sound["name"],
             "filename": sound["filename"],
             "web_url": sound["web_url"],
-            "volume": self.volume if not self.muted else 0.0,
+            "volume": self.sound_volume if not self.muted else 0.0,
+            "sound_volume": self.sound_volume,
             "muted": self.muted,
         }
         return True, "Geluidseffect gestart", payload
@@ -673,9 +676,14 @@ class EffectEngine:
         }
 
     def set_volume(self, volume: float) -> float:
-        """Stelt het audiovolume in tussen 0.0 en 1.0."""
+        """Stelt het video audiovolume in tussen 0.0 en 1.0."""
         self.volume = max(0.0, min(1.0, float(volume)))
         return self.volume
+
+    def set_sound_volume(self, volume: float) -> float:
+        """Stelt het sound effects volume in tussen 0.0 en 1.0."""
+        self.sound_volume = max(0.0, min(1.0, float(volume)))
+        return self.sound_volume
 
     def set_muted(self, muted: bool) -> bool:
         """Dempt of herstelt audio."""
@@ -702,9 +710,11 @@ class EffectEngine:
             "active_effect_started_at": self.active_effect_started_at,
             "disabled": self.disabled,
             "volume": self.volume,
+            "sound_volume": self.sound_volume,
             "muted": self.muted,
             "cooldown_remaining": self.get_cooldown_remaining(),
             "can_trigger": can,
             "reason": reason,
         }
+
 

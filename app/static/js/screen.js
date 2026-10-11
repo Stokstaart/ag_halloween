@@ -40,11 +40,13 @@
   let effectTimeoutTimer = null;
   let isMediaUnlocked = false;
   let currentVolume = 1.0;
+  let currentSoundVolume = 1.0;
   let isMuted = false;
   let backgroundConfig = null;
   let currentOverlapHandler = null;
   const activeSoundEffects = new Set();
   let lastPlayedSound = 'Geen';
+
 
   // Toggle debug HUD
   function updateDebugHud() {
@@ -547,11 +549,15 @@
 
     if (type === 'init' || type === 'background_update') {
       if (data.volume !== undefined) currentVolume = data.volume;
+      if (data.sound_volume !== undefined) currentSoundVolume = data.sound_volume;
       if (data.muted !== undefined) isMuted = !!data.muted;
       setupBackground(data.background);
     } else if (type === 'play_sound') {
       console.info('play_sound signaal ontvangen:', data);
       playSoundEffect(data);
+    } else if (type === 'stop_sound') {
+      console.info('stop_sound commando ontvangen:', data.sound_id);
+      stopSoundEffect(data.sound_id);
     } else if (type === 'play_effect' || type === 'fullscreen' || type === 'overlay' || data.web_url) {
       console.info('play_effect signaal ontvangen:', data);
       playEffect(data);
@@ -559,7 +565,8 @@
       console.info('Noodstop / stop_effect commando ontvangen.');
       returnToBackground(true);
     } else if (type === 'volume_update') {
-      currentVolume = data.volume !== undefined ? data.volume : currentVolume;
+      if (data.volume !== undefined) currentVolume = data.volume;
+      if (data.sound_volume !== undefined) currentSoundVolume = data.sound_volume;
       isMuted = !!data.muted;
       if (activeBgVideo) {
         activeBgVideo.volume = isMuted ? 0 : currentVolume;
@@ -576,12 +583,27 @@
       // Werk volume bij voor alle actieve geluidseffecten
       activeSoundEffects.forEach(snd => {
         try {
-          snd.volume = isMuted ? 0 : currentVolume;
+          snd.volume = isMuted ? 0 : currentSoundVolume;
           snd.muted = isMuted;
         } catch (e) {}
       });
       updateDebugHud();
     }
+  }
+
+  // Stopt een specifiek spelend geluidseffect
+  function stopSoundEffect(soundId) {
+    if (!soundId) return;
+    activeSoundEffects.forEach(player => {
+      if (player.dataset && player.dataset.soundId === soundId) {
+        try {
+          player.pause();
+          player.currentTime = 0;
+          player.removeAttribute('src');
+        } catch (e) {}
+        activeSoundEffects.delete(player);
+      }
+    });
   }
 
   // Speelt een geluidseffect overlappend af via de sfx audio pool (met dynamische fallback)
@@ -596,7 +618,7 @@
     }
 
     const soundUrl = soundData.web_url;
-    const targetVolume = isMuted ? 0 : (soundData.volume !== undefined ? soundData.volume : currentVolume);
+    const targetVolume = isMuted ? 0 : (soundData.volume !== undefined ? soundData.volume : currentSoundVolume);
 
     // 1. Kies een audiospeler uit de vaste pool in de DOM (heeft reeds autoplay-rechten)
     let player = null;
@@ -610,6 +632,7 @@
     try {
       player.pause();
       player.src = soundUrl;
+      player.dataset.soundId = soundData.sound_id || '';
       player.volume = targetVolume;
       player.muted = isMuted;
       player.currentTime = 0;
@@ -619,17 +642,35 @@
 
       const cleanup = () => {
         activeSoundEffects.delete(player);
-        player.removeEventListener('ended', cleanup);
+        player.removeEventListener('ended', onEnded);
         player.removeEventListener('error', onError);
+      };
+
+      const onEnded = () => {
+        console.info('Sound effect afgelopen:', soundData.name);
+        cleanup();
+        // Meld aan backend dat het geluid klaar is
+        if (ws && ws.readyState === WebSocket.OPEN && soundData.sound_id) {
+          ws.send(JSON.stringify({
+            action: 'sound_ended',
+            sound_id: soundData.sound_id,
+          }));
+        }
       };
 
       const onError = (e) => {
         const errDetails = player.error ? `Code ${player.error.code}: ${player.error.message}` : 'Onbekende audiofout';
         console.error('Audiofout bij afspelen van sound effect:', soundData.name, errDetails, e);
         cleanup();
+        if (ws && ws.readyState === WebSocket.OPEN && soundData.sound_id) {
+          ws.send(JSON.stringify({
+            action: 'sound_ended',
+            sound_id: soundData.sound_id,
+          }));
+        }
       };
 
-      player.addEventListener('ended', cleanup);
+      player.addEventListener('ended', onEnded);
       player.addEventListener('error', onError);
 
       lastPlayedSound = soundData.name || soundData.filename || 'Sound';
@@ -645,6 +686,12 @@
           lastPlayedSound = `${soundData.name} (Geblokkeerd door browser)`;
           updateDebugHud();
           cleanup();
+          if (ws && ws.readyState === WebSocket.OPEN && soundData.sound_id) {
+            ws.send(JSON.stringify({
+              action: 'sound_ended',
+              sound_id: soundData.sound_id,
+            }));
+          }
         });
       }
 
@@ -652,6 +699,7 @@
       console.error('Fout bij afspelen sound effect:', e);
     }
   }
+
 
 
 
