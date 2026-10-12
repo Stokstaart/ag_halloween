@@ -1,6 +1,6 @@
 # 🎃 Halloween Projection Control
 
-Een zelfstandige, robuuste en sfeervolle webapplicatie om tijdens Halloween draadloos en realtime raamprojecties, jumpscares en overlappende geluidseffecten aan te sturen op een Android TV-beamer via een mobiele smartphone-controller.
+Een zelfstandige, robuuste en sfeervolle webapplicatie om tijdens Halloween draadloos en realtime raamprojecties, jumpscares en overlappende geluidseffecten aan te sturen op een beamer of extern scherm via een mobiele smartphone-controller.
 
 ---
 
@@ -111,10 +111,10 @@ De applicatie is nu direct bereikbaar via:
 
 ---
 
-## 📽️ Installatie & Gebruik op de Beamer (Android TV)
+## 📽️ Installatie & Gebruik op het Projectiescherm (Beamer / TV)
 
 1. **Browser installeren:**
-   - Installeer een Android TV-geschikte browser via de Google Play Store op de beamer. Aanbevolen:
+   - Installeer een geschikte browser via de app store op de beamer of mediaspeler. Aanbevolen:
      - **TV Bro** (open-source, uitstekende ondersteuning voor volledig scherm en afstandsbedieningen)
      - **BrowseHere** of **JioPages TV**
 2. **Navigeer naar het scherm:**
@@ -175,7 +175,7 @@ Plaats je eigen bestanden in de bijbehorende mappen (hot-reload, geen herstart n
 ### Aanbevolen Codecs:
 - **Video:** H.264 (AVC) met AAC audio en FastStart (`+faststart` moov atom).
 - **Audio:** MP3 of AAC (Stereo, 44.1 of 48 kHz).
-- *Tip:* Bestanden met moderne codecs zoals AV1 kunnen door Android TV decoders haperen; converteer ze eenvoudig naar H.264 via `ffmpeg -i input.mp4 -c:v libx264 -preset fast -crf 22 -c:a aac -movflags +faststart output.mp4`.
+- *Tip:* Bestanden met moderne codecs zoals AV1 kunnen door sommige hardware-decoders haperen; converteer ze eenvoudig naar H.264 via de ingebouwde 'Video Optimalisatie' knop in de controller of via `ffmpeg -i input.mp4 -c:v libx264 -preset fast -crf 22 -c:a aac -movflags +faststart output.mp4`.
 
 ---
 

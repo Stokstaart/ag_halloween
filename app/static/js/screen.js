@@ -1,6 +1,6 @@
 /**
  * Halloween Projection Screen - Client Engine
- * Geoptimaliseerd voor beamerbrowsers (Android TV).
+ * Geoptimaliseerd voor beamerbrowsers en smart tv's.
  */
 
 (function () {
@@ -79,7 +79,7 @@
     } else if (e.key === 'Escape' || e.key === 's' || e.key === 'S') {
       returnToBackground(true);
     }
-    // Druk op een willekeurige toets om media te unlocken op Android TV
+    // Druk op een willekeurige toets om media te unlocken op het scherm
     if (!isMediaUnlocked) {
       unlockMedia();
     }

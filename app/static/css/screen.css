@@ -93,7 +93,7 @@ body.show-cursor {
   opacity: 1;
 }
 
-/* Audio-unlock prompt voor Android TV browsers */
+/* Audio-unlock prompt voor beamer / tv browsers */
 #unlock-overlay {
   position: absolute;
   top: 0;
