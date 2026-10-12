@@ -9,6 +9,7 @@ venv/
 .venv/
 tests/
 *.log
+screenshots/
 media/*
 !media/background/.gitkeep
 !media/effects/.gitkeep

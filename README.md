@@ -4,6 +4,12 @@ A standalone, robust, and atmospheric web application for wireless, real-time co
 
 > 🤖 **100% Vibe Coded**: This entire project was built from scratch using AI (*"vibe coding"*). *No prior coding knowledge was used for this setup* — purely conversational prompting, testing, and iterating.
 
+<p align="center">
+  <img src="screenshots/startpage.png" width="45%" alt="Halloween Hub Landing Page" />
+  &nbsp;
+  <img src="screenshots/mission-control.png" width="33%" alt="Mobile Haunted House Mission Control" />
+</p>
+
 ---
 
 ## 🌟 Key Features
