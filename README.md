@@ -1,203 +1,208 @@
 # 🎃 Halloween Projection Control
 
-Een zelfstandige, robuuste en sfeervolle webapplicatie om tijdens Halloween draadloos en realtime raamprojecties, jumpscares en overlappende geluidseffecten aan te sturen op een beamer of extern scherm via een mobiele smartphone-controller.
+A standalone, robust, and atmospheric web application for wireless, real-time control of Halloween window projections, jumpscares, and overlapping sound effects on a projector or external display using your smartphone.
 
-> 🤖 **100% Vibe Coded**: Dit volledige project is van de eerste tot de laatste regel gebouwd met behulp van AI (*"vibe coding"*). *No prior coding knowledge was used for this setup* — puur interactief bouwen, prompten, testen en itereren.
-
----
-
-## 🌟 Belangrijkste Eigenschappen
-
-- **Twee Gescheiden Interfaces**:
-  - `/screen`: Volledig scherm, randloos, pure zwarte achtergrond (`#000000`), dual-layer videoplayer voor doorlopende achtergrondloops, naadloze overgangen en overlappende audio.
-  - `/control`: Sfeervol donker bedieningspaneel in haunted house-stijl (zwart, pompoenoranje en bloedrood), geoptimaliseerd voor éénhandsbediening op smartphone met haptische vibratiefeedback.
-- **Geen Kunstmatige Tijdslimieten of Wachttijden**:
-  - **0 Seconden Cooldown**: Geen verplichte wachttijd tussen scares. Je drukt op de knop wanneer het jou uitkomt.
-  - **Volledige Speelduur**: Scares worden niet kunstmatig afgekapt op een vaste limiet. De engine leest automatisch de werkelijke videoduur uit de MP4 metadata (`mvhd` atom) en speelt de video vloeiend uit.
-  - **Directe Override**: Het aantikken van een nieuwe scare breekt het vorige effect direct af en start het nieuwe effect onmiddellijk (`force: true`).
-- **Naadloze Dual-Layer Videoplayer (Zero Black Screen)**:
-  - Twee parallelle achtergrondspelers met vloeiende CSS crossfades.
-  - Bij een jumpscare blijft de achtergrond zichtbaar totdat het eerste frame van het schrikeffect daadwerkelijk decodeert en afspeelt.
-  - Vloeiende overgang terug naar de achtergrond ca. 0.7s vóór het einde van het effect.
-  - **Live Wisselen van Achtergrond**: Schakel op de controller direct tussen verschillende achtergrondloops in `media/background/`.
-- **🔊 Overlappende Geluidseffecten (.mp3)**:
-  - Speel losse geluidseffecten (screams, heksengelach, wolvengehuil, onweer) af via een speciale audio-pool.
-  - **Polyfoon & Overlappend**: Het afspelen van een geluidseffect dempt of stopt de lopende achtergrondvideo of jumpscarevideo **niet**.
-  - **Visuele Highlight & Toggle-to-Stop**: Spelende geluidseffecten lichten op de controller herkenbaar paars pulserend op. Een tweede klik op de pulserende knop stopt dat specifieke geluidseffect onmiddellijk.
-  - **Automatische Synchronisatie**: Zodra een geluidseffect is afgelopen, dooft de knop automatisch op alle aangesloten telefoons.
-- **🎚️ Gescheiden Volumeregeling**:
-  - Twee onafhankelijke volumeschuifbalken op de mobiele controller:
-    1. **Videovolume**: Voor de achtergrondvideo en video-jumpscares.
-    2. **🎵 Geluidseffecten Volume (.mp3)**: Specifiek voor de losse audio-effecten.
-- **📱 Flexibele Grid-indeling (3 of 4 Kolommen)**:
-  - Schakel bovenaan het paneel direct tussen een 3-koloms of 4-koloms raster voor effectknoppen, zodat je op elk smartphonescherm alle knoppen overzichtelijk bij de hand hebt. De voorkeur wordt onthouden in `localStorage`.
-- **🔍 Volledig Dynamische Mediabestandsdetectie**:
-  - Plaats simpelweg een nieuw videobestand (`.mp4`, `.webm`) in `media/effects/` of `media/background/`, of een audiobestand (`.mp3`, `.wav`) in `media/audio/`.
-  - Bestanden worden direct automatisch herkend en voorzien van een passende naam en Halloween-icoon, zonder handmatige configuratie van JSON-bestanden!
-- **⚡ Ingebouwde Video-Optimalisatie (FastStart & H.264)**:
-  - Scant alle MP4-bestanden automatisch en verplaatst de `moov` atom vooraan voor buffervrij en vertragingsvrij starten op de beamer.
-- **⏱️ Automatische Spookmodus (Autopilot Scheduler)**:
-  - Configureerbare server-side timer (1-6 min) die willekeurige scares en geluiden afvuurt, ook als je telefoon vergrendeld is.
-- **🛑 Betrouwbare Noodstop & Herverbinding**:
-  - Directe noodstopknop (`Return to Background`) met dubbele WebSocket + HTTP REST fallback (`POST /api/stop`), die zowel actieve video's als spelende geluidseffecten per direct afbreekt.
-  - Automatische WebSocket liveness-watchdog en wake-lock herstel bij ontwaken van je smartphone.
-- **🐳 Docker-Ready & Zelfstandig**:
-  - Draait 100% lokaal in Docker / Portainer, geen cloudverbinding vereist.
-  - Volledig standalone te bedienen via smartphone en beamerbrowser.
+> 🤖 **100% Vibe Coded**: This entire project was built from scratch using AI (*"vibe coding"*). *No prior coding knowledge was used for this setup* — purely conversational prompting, testing, and iterating.
 
 ---
 
-## 📁 Projectstructuur
+## 🌟 Key Features
+
+- **Two Dedicated Interfaces**:
+  - `/screen`: Fullscreen, borderless, pure black background (`#000000`), dual-layer video player for continuous ambient loops, seamless crossfades, and overlapping audio.
+  - `/control`: Atmospheric dark haunted-house mobile dashboard (black, pumpkin orange, and blood red), optimized for one-handed smartphone control with haptic vibration feedback.
+- **No Artificial Time Limits or Wait Times**:
+  - **0-Second Cooldown**: No mandatory wait time between scares. Trigger effects whenever you want.
+  - **Full Playback Duration**: Scares are never prematurely cut off. The engine automatically reads the true video length from the MP4 metadata (`mvhd` atom) and plays the complete video smoothly.
+  - **Instant Override**: Tapping a new scare immediately cancels the previous effect and launches the new one instantly (`force: true`).
+- **Seamless Dual-Layer Video Player (Zero Black Screen)**:
+  - Two parallel background video players with smooth CSS crossfades.
+  - During a jumpscare, the background remains visible until the first frame of the scare video actually decodes and renders.
+  - Smooth fade back to the background approximately 0.7s before the scare video ends.
+  - **Live Background Switching**: Switch between different background loops in `media/background/` on the fly from the mobile controller.
+- **🔊 Overlapping Sound Effects (.mp3)**:
+  - Play standalone sound effects (screams, witch cackles, wolf howls, thunder) through a dedicated polyphonic audio pool.
+  - **Polyphonic & Non-Blocking**: Playing a sound effect does **not** interrupt or mute the active background or jumpscare video.
+  - **Visual Highlight & Toggle-to-Stop**: Playing sound effects pulse with a purple glow on the controller. Tapping a pulsing button a second time immediately stops that specific sound effect.
+  - **Automatic Sync**: Buttons turn off automatically on all connected devices when a sound effect finishes.
+- **🎚️ Independent Volume Controls**:
+  - Two separate volume sliders on the mobile controller:
+    1. **Video Volume**: For the background loop and jumpscare videos (with mute toggle).
+    2. **🎵 Sound Effects Volume (.mp3)**: Dedicated volume control for standalone audio effects.
+- **📱 Responsive Grid Layout (3 or 4 Columns)**:
+  - Switch between a 3-column or 4-column button layout to fit your phone screen size. Your preference is remembered across sessions via `localStorage`.
+- **🔍 Zero-Config Dynamic Media Discovery**:
+  - Simply drop a new video (`.mp4`, `.webm`) into `media/effects/` or `media/background/`, or an audio file (`.mp3`, `.wav`) into `media/audio/`.
+  - Files are automatically detected with hot-reload, formatted with clean titles, and assigned matching Halloween icons — no need to touch configuration files!
+- **⚡ Built-in Video Optimization (FastStart & H.264)**:
+  - Scans all MP4 files and moves the `moov` atom to the beginning (`+faststart`) for buffer-free, instant playback on projectors and smart TVs.
+- **⏱️ Automated Spook Mode (Autopilot Scheduler)**:
+  - Configurable server-side timer (1–6 minutes) that triggers random scares and sound effects automatically while your phone is in your pocket.
+- **🛑 Reliable Emergency Stop & Reconnection**:
+  - Instant emergency stop button (`Return to Background`) with dual WebSocket + HTTP REST fallback (`POST /api/stop`), cutting off both active videos and playing sounds immediately.
+  - Automatic WebSocket liveness watchdog and wake-lock recovery when waking your phone.
+- **🐳 Docker-Ready & Standalone**:
+  - Runs 100% locally in Docker / Portainer, no cloud connectivity or third-party accounts required.
+
+---
+
+## 📁 Project Structure
 
 ```text
 .
 ├── app/
-│   ├── config.py           # Omgevingsvariabelen, padvalidatie en defaults
-│   ├── effect_engine.py    # Effectengine, MP4 metadataparser, dynamische schijfscan & volume
-│   ├── ws_manager.py       # WebSocket connection manager voor beamer en controllers
-│   ├── scheduler.py        # Server-side autopilot scheduler voor willekeurige scares
-│   ├── media_optimizer.py  # FastStart atom fixer en H.264 video converter
-│   ├── main.py             # FastAPI app, REST routes en realtime WebSocket communicatie
+│   ├── config.py           # Environment variables, path validation, and defaults
+│   ├── effect_engine.py    # Effect engine, MP4 metadata parser, dynamic file scanning & volume
+│   ├── ws_manager.py       # WebSocket connection manager for screens and controllers
+│   ├── scheduler.py        # Server-side autopilot scheduler for automated random scares
+│   ├── media_optimizer.py  # FastStart atom fixer and H.264 video converter
+│   ├── main.py             # FastAPI app, REST routes, and real-time WebSocket communication
 │   ├── templates/
-│   │   ├── index.html      # Startpagina en statusdashboard
-│   │   ├── login.html      # Halloween inlogscherm (30-dagen sessie)
-│   │   ├── screen.html     # Projectiescherm voor beamer (dual-video + audio pool)
-│   │   └── control.html    # Mobiele controller (grid, sliders, autopilot, optimizer)
+│   │   ├── index.html      # Landing page and status hub
+│   │   ├── login.html      # Halloween login screen (30-day session)
+│   │   ├── screen.html     # Projection screen display (dual-video + audio pool)
+│   │   └── control.html    # Mobile controller (grid, sliders, autopilot, optimizer)
 │   └── static/
-│       ├── css/            # Vormgeving (screen.css & control.css)
-│       └── js/             # Client logica (screen.js & control.js)
+│       ├── css/            # Stylesheets (screen.css & control.css)
+│       └── js/             # Client-side logic (screen.js & control.js)
 ├── config/
-│   └── effects.json        # Basisconfiguratie en eventuele statische overrides
-├── media/                  # Persistente opslag voor mediabestanden
-│   ├── background/         # Achtergrondvideo's (bijv. Halloween Window Projection 2024.mp4)
-│   ├── effects/            # Jumpscare en schrikvideo's (GrimReaper.mp4, scare1.mp4, etc.)
-│   └── audio/              # Geluidseffecten (losse .mp3 bestanden zoals wolf howl, screams)
-├── tests/                  # Geautomatiseerde testsuite (pytest, 41 tests)
+│   └── effects.json        # Base configuration template and static overrides
+├── media/                  # Persistent storage for media files
+│   ├── background/         # Ambient video loops (e.g. ambient_fog.mp4)
+│   ├── effects/            # Jumpscare and scare videos (e.g. scare1.mp4, ghost_attack.mp4)
+│   └── audio/              # Standalone sound effects (.mp3 files like wolf howl, screams)
+├── tests/                  # Automated test suite (pytest, 42 tests)
 ├── Dockerfile              # Container image (Python 3.12-slim, ffmpeg, UID 1000 appuser)
-├── compose.yaml            # Docker Compose stack met volume mounts
-├── .env.example            # Voorbeeldconfiguratie
+├── compose.yaml            # Docker Compose stack with volume mounts
+├── .dockerignore           # Keeps container build context clean and fast
+├── .env.example            # Example configuration
+├── LICENSE                 # MIT License
 └── requirements.txt        # Python dependencies
 ```
 
 ---
 
-## 🚀 Snelle Start met Docker Compose
+## 🚀 Quick Start with Docker Compose
 
-### 1. Repository clonen of openen
+### 1. Clone the repository
 ```bash
 git clone https://github.com/Stokstaart/ag_halloween.git
 cd ag_halloween
 ```
 
-### 2. Omgevingsbestand configureren (optioneel)
+### 2. Configure environment (optional)
 ```bash
 cp .env.example .env
 ```
-Standaardwaarden in `.env`:
+Default settings in `.env`:
 ```env
 PORT=8088
-AUTH_TOKEN=                     # Laat leeg voor lokaal open LAN-gebruik
-COOLDOWN_SECONDS=0.0            # 0.0 = direct vuren zonder wachttijd
-MAX_EFFECT_DURATION_SECONDS=300.0  # Ruime veiligheidslimiet (5 min)
+PASSWORD=                      # Leave empty for open LAN use, or set a password (e.g. MySecretPass123)
+AUTH_TOKEN=                    # Alternative API token for REST endpoints
+COOLDOWN_SECONDS=0.0           # 0.0 = fire immediately without wait time
+MAX_EFFECT_DURATION_SECONDS=300.0  # Safety fallback limit (5 min)
 ```
 
-### 3. Container bouwen en starten
+### 3. Build and launch the container
 ```bash
 docker compose up -d --build
 ```
 
-De applicatie is nu direct bereikbaar via:
-- **Overzicht & Hub:** `http://<SERVER-IP>:8088/`
-- **Projectiescherm (Beamer):** `http://<SERVER-IP>:8088/screen`
-- **Mobiele Controller (Smartphone):** `http://<SERVER-IP>:8088/control`
+The application is immediately available at:
+- **Hub & Overview:** `http://<SERVER-IP>:8088/`
+- **Projection Screen (Projector / TV):** `http://<SERVER-IP>:8088/screen`
+- **Mobile Controller (Smartphone):** `http://<SERVER-IP>:8088/control`
 
 ---
 
-## 📽️ Installatie & Gebruik op het Projectiescherm (Beamer / TV)
+## 📽️ Setup on Your Projector or Display
 
-1. **Browser installeren:**
-   - Installeer een geschikte browser via de app store op de beamer of mediaspeler. Aanbevolen:
-     - **TV Bro** (open-source, uitstekende ondersteuning voor volledig scherm en afstandsbedieningen)
-     - **BrowseHere** of **JioPages TV**
-2. **Navigeer naar het scherm:**
-   - Open de URL: `http://<SERVER-IP>:8088/screen`
-3. **Eenmalige Audio Autoplay Unlock:**
-   - Browsers blokkeren automatische audio tot de eerste interactie.
-   - Bij het openen toont het scherm eenmalig een melding: *"Halloween Projectie Gereed - Druk op OK op je afstandsbediening of klik hier om audio en beeld te activeren."*
-   - Druk op **OK** op de afstandsbediening. De beamer draait daarna de hele avond autonoom met geluid.
-4. **Volledig scherm:**
-   - Schakel fullscreen in via het browsermenu (in TV Bro bijv. via menu of toets 'F').
-5. **Debug HUD (optioneel):**
-   - Druk op toets **D** (of open met `?debug=1`) voor realtime weergave van FPS, actieve spelers en netwerkstatus.
-6. **Sneltoets Noodstop:**
-   - Druk op **Escape** of **S** op een aangesloten toetsenbord/afstandsbediening om direct terug te keren naar de achtergrond.
-
----
-
-## 📱 Gebruik van de Mobiele Controller (`/control`)
-
-Open `http://<SERVER-IP>:8088/control` op je telefoon op hetzelfde netwerk.
-
-### Onderdelen van het bedieningspaneel:
-1. **Verbindingsstatus & Noodstop**:
-   - Statusindicator (`🟢 Beamer verbonden` / `🔴 Geen beamer verbonden`).
-   - Grote rode **🛑 Noodstop (Return to Background)** knop die per direct video's en geluiden afbreekt.
-2. **🎬 Achtergrond Selectie**:
-   - Dropdown met alle gedetecteerde video's in `media/background/`.
-   - Druk op **Wissel** om naadloos met een crossfade over te schakelen naar een andere achtergrondloop.
-3. **💀 Jumpscares & Effecten**:
-   - Raster met alle geconfigureerde en dynamisch gedetecteerde videoscares (Ghost Attack, Jumpscare, Window Scratcher, Scare 4, Scare 5, etc.).
-   - **3 / 4 Kolommen Toggle**: Schakel tussen 3 of 4 knoppen per rij.
-   - **Geen cooldown**: Druk op elk gewenst moment op een effect; een actief effect wordt direct vervangen door het nieuw gekozen effect.
-   - **Voortgangsbalk**: Toont realtime de resterende seconden op basis van de werkelijke lengte van de video.
-4. **🔊 Geluidseffecten (Overlap)**:
-   - Knoppen voor losse `.mp3` effecten (Screams, Wolf Howl, Sirens, etc.).
-   - **Paarse puls**: Knop pulseert zolang het geluid speelt.
-   - **Stop toggle**: Klik nogmaals op een pulserende knop om uitsluitend dat geluidseffect direct te stoppen.
-5. **🎚️ Onafhankelijke Volumeregeling**:
-   - **Bovenste slider**: Videovolume (achtergrond + jumpscares) + Mute toggle.
-   - **Onderste slider (paars)**: Geluidseffecten Volume (.mp3).
+1. **Install a browser:**
+   - Install a web browser via your projector or smart TV app store. Recommended:
+     - **TV Bro** (open-source, excellent fullscreen and remote control support)
+     - **BrowseHere** or **JioPages TV**
+2. **Open the screen URL:**
+   - Navigate to: `http://<SERVER-IP>:8088/screen`
+3. **One-Time Audio Autoplay Unlock:**
+   - Web browsers block automated audio until the first user interaction.
+   - On first load, the screen displays a prompt: *"Halloween Projection Ready - Press OK on your remote or click here to enable audio and video."*
+   - Press **OK** on your remote. The projector will run smoothly all evening with sound enabled.
+4. **Fullscreen:**
+   - Toggle fullscreen in the browser menu (or press 'F' in TV Bro).
+5. **Debug HUD (optional):**
+   - Press key **D** (or open with `?debug=1`) for a real-time HUD showing FPS, active players, and WebSocket connection status.
+6. **Emergency Stop Shortcut:**
+   - Press **Escape** or **S** on a connected remote/keyboard to return to the background immediately.
 
 ---
 
-## 🎬 Mediabestanden & Content Verzamelen
+## 📱 Using the Mobile Controller (`/control`)
 
-Omdat mediabestanden en animaties auteursrechtelijk beschermd zijn, bevat deze repository standaard geen videoclips. **Je brengt simpelweg je eigen bestanden mee!**
+Open `http://<SERVER-IP>:8088/control` on your smartphone on the same network.
 
-### Waar haal je geschikte beelden en geluiden vandaan?
-1. **Video's (Achtergronden & Jumpscares)**:
-   - Zoek op YouTube naar bijvoorbeeld: `"Halloween window projection loop"`, `"Halloween spooky fog background"`, of `"ghost projection green screen"`.
-   - Download ze eenvoudig via de commandline met [`yt-dlp`](https://github.com/yt-dlp/yt-dlp):
+### Dashboard Overview:
+1. **Connection Status & Emergency Stop**:
+   - Status indicator (`🟢 Display connected` / `🔴 No display connected`).
+   - Big red **🛑 Emergency Stop (Return to Background)** button that immediately cancels active videos and sounds.
+2. **🎬 Background Selection**:
+   - Dropdown listing all detected videos in `media/background/`.
+   - Tap **Switch** to crossfade seamlessly to a different ambient loop.
+3. **💀 Jumpscares & Video Effects**:
+   - Grid showing all configured and dynamically detected scare videos (`Scare 1`, `Scare 4`, `Ghost Attack`, `Window Scratcher`, etc.).
+   - **3 / 4 Column Toggle**: Switch between 3 or 4 buttons per row.
+   - **0-Second Cooldown**: Tap any effect at any time; an active effect is instantly replaced by your new choice.
+   - **Progress Bar**: Displays remaining seconds in real time based on actual video duration.
+4. **🔊 Standalone Sound Effects**:
+   - Buttons for individual `.mp3` sound effects (Screams, Wolf Howl, Sirens, etc.).
+   - **Purple Glow**: Button pulses while audio is actively playing.
+   - **Stop Toggle**: Tap a pulsing button again to stop that specific sound effect immediately.
+5. **🎚️ Independent Volume Controls**:
+   - **Top Slider**: Video volume (background loop + scare videos) + mute toggle.
+   - **Bottom Slider (Purple)**: Sound effects volume (.mp3).
+
+---
+
+## 🎬 Gathering Media & Content
+
+Because animations and sound effects are copyrighted, this repository does not include pre-packaged video clips. **Simply bring your own files!**
+
+### Where to Find Spooky Content?
+1. **Videos (Ambient Backgrounds & Jumpscares)**:
+   - Search YouTube for queries like: `"Halloween window projection loop"`, `"Halloween spooky fog background"`, or `"ghost projection green screen"`.
+   - Download them easily using [`yt-dlp`](https://github.com/yt-dlp/yt-dlp):
      ```bash
-     # Download video als MP4 rechtstreeks naar de effectenmap
-     yt-dlp -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" "https://www.youtube.com/watch?v=VOORBEELD" -o "media/effects/mijn_scare.mp4"
+     # Download video as MP4 directly into the effects directory
+     yt-dlp -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" "https://www.youtube.com/watch?v=EXAMPLE_ID" -o "media/effects/my_scare.mp4"
      ```
-2. **Geluidseffecten (.mp3)**:
-   - Gratis en rechtenvrije audio is te vinden op [Freesound.org](https://freesound.org/) of [Pixabay Sound Effects](https://pixabay.com/sound-effects/) (zoek op *"scream"*, *"wolf howl"*, *"evil laugh"*, *"thunder"*, *"chains"*).
+2. **Sound Effects (.mp3)**:
+   - Find free, royalty-free audio on [Freesound.org](https://freesound.org/) or [Pixabay Sound Effects](https://pixabay.com/sound-effects/) (search for *"scream"*, *"wolf howl"*, *"witch laugh"*, *"thunder"*, *"rattling chains"*).
 
-### Slepen en klaar (Zero Configuration!):
-Plaats je bestanden simpelweg in de mappen:
-- `media/background/`: Continue achtergrondloops (bijv. donker bos, mist).
-- `media/effects/`: Jumpscare- en schrikvideo's (bijv. `scare1.mp4`, `zombie.mp4`).
-- `media/audio/`: Losse geluidseffecten (bijv. `wolf_howl.mp3`, `scream.mp3`).
+### Drag, Drop & Done (Zero Configuration!):
+Simply drop your files into the respective folders:
+- `media/background/`: Continuous ambient loops (e.g. dark forest, dense fog, candlelight).
+- `media/effects/`: Jumpscare and scare videos (e.g. `scare1.mp4`, `zombie.mp4`).
+- `media/audio/`: Standalone sound effects (e.g. `wolf_howl.mp3`, `scream.mp3`).
 
-Het bedieningspaneel **detecteert nieuwe bestanden automatisch** (hot-reload, geen herstart nodig), maakt er automatisch knoppen van met passende Halloween-iconen en berekent de exacte speelduur. Je hoeft **nooit** een configuratiebestand of JSON aan te passen!
+The control panel **automatically discovers new files on the fly** (hot-reload, no restart needed), generates clean button labels with Halloween icons, and calculates exact media durations. You never need to touch JSON configuration files!
 
-### Aanbevolen Codecs:
-- **Video:** H.264 (AVC) met AAC audio en FastStart (`+faststart` moov atom).
+### Recommended Codecs:
+- **Video:** H.264 (AVC) with AAC audio and FastStart (`+faststart` moov atom).
 - **Audio:** MP3 of AAC (Stereo, 44.1 of 48 kHz).
-- *Tip:* Bestanden met moderne codecs zoals AV1 kunnen door sommige hardware-decoders haperen; converteer ze eenvoudig naar H.264 via de ingebouwde 'Video Optimalisatie' knop in de controller of via `ffmpeg -i input.mp4 -c:v libx264 -preset fast -crf 22 -c:a aac -movflags +faststart output.mp4`.
+- *Tip:* Files encoded with newer codecs like AV1 may stutter on older hardware decoders; convert them easily to H.264 using the built-in 'Video Optimization' button in the controller or via ffmpeg:
+  ```bash
+  ffmpeg -i input.mp4 -c:v libx264 -preset fast -crf 22 -c:a aac -movflags +faststart output.mp4
+  ```
 
 ---
 
-## 🌐 Reverse Proxy & Buitenshuis Bedienen
+## 🌐 Reverse Proxy & Remote Control (4G/5G)
 
-Wil je tijdens Halloween vanaf de straat of oprit op je smartphone (via 4G/5G) de beamer binnen aansturen via een eigen domeinnaam (bijv. `https://halloween.jouwdomein.nl`)? Dat kan eenvoudig via een reverse proxy (zoals Synology Reverse Proxy, Nginx, Caddy of Traefik):
+Want to trigger scares from the street or driveway on your mobile phone (over 4G/5G) using your own domain name (e.g. `https://halloween.yourdomain.com`)? You can easily place the container behind a reverse proxy (such as Synology Reverse Proxy, Nginx, Caddy, Traefik, or Cloudflare Tunnels):
 
-### Belangrijk: WebSockets Aanzetten
-De communicatie tussen je mobiele telefoon en het beamer-scherm verloopt in realtime via **WebSockets** (`/ws`).
-Zorg dat je reverse proxy WebSocket upgrades doorlaat:
-- **Synology Reverse Proxy**: Bewerk de proxy-regel → ga naar *Aangepaste header* → *Maken* → *WebSocket* (dit stelt automatisch `Upgrade` en `Connection` in).
+### Important: Enable WebSockets
+Communication between your phone and the projection screen relies on real-time **WebSockets** (`/ws`).
+Ensure your reverse proxy forwards WebSocket upgrade headers:
+- **Synology Reverse Proxy**: Edit the reverse proxy rule → go to *Custom Header* → *Create* → *WebSocket* (this automatically sets the `Upgrade` and `Connection` headers).
 - **Nginx**:
   ```nginx
   proxy_pass http://localhost:8088;
@@ -205,36 +210,36 @@ Zorg dat je reverse proxy WebSocket upgrades doorlaat:
   proxy_set_header Upgrade $http_upgrade;
   proxy_set_header Connection "upgrade";
   ```
-- **Wachtwoord instellen**: Stel in `.env` een wachtwoord in (`PASSWORD=jouwWachtwoord` of `AUTH_TOKEN=jouwWachtwoord`). Je krijgt dan bij het openen van de controller een net inlogscherm te zien dat je 30 dagen ingelogd houdt.
+- **Password Protection**: Set a password in `.env` (`PASSWORD=yourSecretPassword`). When visiting `/control`, you'll be greeted with a themed login page that keeps you signed in with a secure 30-day cookie.
 
 ---
 
-## 🔒 Beveiliging
+## 🔒 Security
 
-1. **Lokaal Netwerk (Standaard):**
-   - Met lege `AUTH_TOKEN` is het systeem direct bruikbaar op je thuisnetwerk. De controller toont een subtiele `⚠️ LAN Open` badge.
-2. **Beveiligde Wachtwoord Modus:**
-   - Vul in `.env` een wachtwoord in: `PASSWORD=mijnGeheim`.
-   - Open de interface en log in; er wordt automatisch een 30-dagen sessie-cookie geplaatst.
-3. **Path Traversal Bescherming:**
-   - De backend valideert alle bestandspaden strikt; ongeldige bestandspaden en `..` worden categorisch geblokkeerd.
+1. **Local Network (Default):**
+   - With an empty password, the system is immediately usable on your private LAN. The controller shows a subtle `⚠️ LAN Open` badge.
+2. **Password Protected Mode:**
+   - Set a password in `.env`: `PASSWORD=MySecretPassword`.
+   - Logging in via the web UI sets an HTTP-only 30-day session cookie.
+3. **Path Traversal Protection:**
+   - All file paths are strictly validated; invalid file paths and directory traversal attempts (`..`) are categorically rejected.
 
 ---
 
-## 🧪 Geautomatiseerde Tests
+## 🧪 Automated Testing
 
-De testsuite valideert de REST API, EffectEngine, audio playback, cooldown overrides en WebSocket broadcasts:
+The modular test suite validates REST endpoints, EffectEngine file discovery, audio playback, cooldown overrides, and WebSocket broadcasts:
 
 ```bash
-# Virtuele omgeving activeren
+# Activate virtual environment
 source .venv/bin/activate
 
-# 42 tests uitvoeren
+# Run all 42 automated tests
 pytest -v
 ```
 
 ---
 
-## 📄 Licentie
+## 📄 License
 
-Dit project is vrijgegeven onder de [MIT Licentie](LICENSE). Iedereen is vrij om deze software te gebruiken, aan te passen en te delen.
+This project is open-source and released under the [MIT License](LICENSE). Anyone is free to use, modify, and distribute this software.
