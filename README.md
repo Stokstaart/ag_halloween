@@ -39,9 +39,9 @@ Een zelfstandige, robuuste en sfeervolle webapplicatie om tijdens Halloween draa
 - **🛑 Betrouwbare Noodstop & Herverbinding**:
   - Directe noodstopknop (`Return to Background`) met dubbele WebSocket + HTTP REST fallback (`POST /api/stop`), die zowel actieve video's als spelende geluidseffecten per direct afbreekt.
   - Automatische WebSocket liveness-watchdog en wake-lock herstel bij ontwaken van je smartphone.
-- **🏠 Homelab & Docker-Ready**:
+- **🐳 Docker-Ready & Zelfstandig**:
   - Draait 100% lokaal in Docker / Portainer, geen cloudverbinding vereist.
-  - Klaar voor Home Assistant automatiseringen via eenvoudige REST-commando's (bijv. gekoppeld aan een Zigbee deurbel of bewegingsmelder).
+  - Volledig standalone te bedienen via smartphone en beamerbrowser.
 
 ---
 
@@ -188,34 +188,6 @@ Plaats je eigen bestanden in de bijbehorende mappen (hot-reload, geen herstart n
    - Open de interfaces via `http://<SERVER-IP>:8088/control?token=mijnGeheimeToken123` en `http://<SERVER-IP>:8088/screen?token=mijnGeheimeToken123`.
 3. **Path Traversal Bescherming:**
    - De backend valideert alle bestandspaden strikt; ongeldige bestandspaden en `..` worden categorisch geblokkeerd.
-
----
-
-## 🏠 Optionele Home Assistant Integratie
-
-Aansturing via Home Assistant verloopt eenvoudig via standaard REST-commando's:
-
-### `configuration.yaml` in Home Assistant:
-```yaml
-rest_command:
-  halloween_trigger_jumpscare:
-    url: "http://<IP-SERVER>:8088/api/trigger"
-    method: "POST"
-    headers:
-      Content-Type: "application/json"
-    payload: '{"effect_id": "jumpscare", "force": true}'
-
-  halloween_trigger_sound:
-    url: "http://<IP-SERVER>:8088/api/sound"
-    method: "POST"
-    headers:
-      Content-Type: "application/json"
-    payload: '{"sound_id": "sound_wolf_howl"}'
-
-  halloween_stop:
-    url: "http://<IP-SERVER>:8088/api/stop"
-    method: "POST"
-```
 
 ---
 

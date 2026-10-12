@@ -157,7 +157,7 @@ def is_authenticated(request: Request, token_param: Optional[str] = None) -> boo
     if req_token and req_token == AUTH_TOKEN:
         return True
 
-    # 3. Headers (voor curl, Home Assistant of externe API-aanroepen)
+    # 3. Headers (voor curl of externe API-aanroepen)
     x_token = request.headers.get("X-Auth-Token")
     if x_token and x_token == AUTH_TOKEN:
         return True
@@ -496,7 +496,7 @@ async def api_set_background(payload: BackgroundRequest, authenticated: bool = D
 
 @app.post("/api/trigger")
 async def api_trigger(payload: TriggerRequest, authenticated: bool = Depends(verify_token)):
-    """Triggert een effect via REST (handig voor bijv. Home Assistant rest_command)."""
+    """Triggert een effect via REST."""
     success, reason, effect_payload = engine.trigger_effect(payload.effect_id, force=bool(payload.force))
     if not success:
         raise HTTPException(status_code=400, detail=reason)
