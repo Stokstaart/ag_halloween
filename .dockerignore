@@ -12,4 +12,5 @@ tests/
 media/*
 !media/background/.gitkeep
 !media/effects/.gitkeep
+!media/effects/scary_clown*.mp4
 !media/audio/.gitkeep

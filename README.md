@@ -164,7 +164,7 @@ Open `http://<SERVER-IP>:8088/control` on your smartphone on the same network.
 
 ## 🎬 Gathering Media & Content
 
-Because animations and sound effects are copyrighted, this repository does not include pre-packaged video clips. **Simply bring your own files!**
+This repository comes with **6 AI-generated, royalty-free clown jumpscares** pre-installed in `media/effects/` so you can test the setup immediately out of the box! For additional animations and sounds, **simply bring your own files!**
 
 ### Where to Find Spooky Content?
 1. **Videos (Ambient Backgrounds & Jumpscares)**:
