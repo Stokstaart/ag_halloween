@@ -370,6 +370,13 @@ async def view_control(request: Request, token: Optional[str] = None):
 # REST API Endpoints
 # ==========================================
 
+@app.get("/health")
+@app.get("/api/health")
+async def health_check():
+    """Lichtgewicht health check endpoint voor Docker en container orchestrators."""
+    return {"status": "ok"}
+
+
 @app.get("/api/status")
 async def api_status(authenticated: bool = Depends(verify_token)):
     """Geeft de actuele status van de server, verbindingen en effectengine."""

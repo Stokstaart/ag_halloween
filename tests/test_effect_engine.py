@@ -240,3 +240,25 @@ def test_background_in_effects_folder(temp_env):
     assert any("achtergrond_zombies_test.mp4" in b["filename"] for b in bg_list)
 
 
+def test_exact_filename_matching_and_scare1_naming(temp_env):
+    """Test dat bestandsnamen exact gematcht worden en scare1 niet gekaapt wordt door een template."""
+    engine, media_dir, _ = temp_env
+    eff_dir = media_dir / "effects"
+    
+    # Maak scare1.mp4 aan
+    scare1 = eff_dir / "scare1.mp4"
+    scare1.write_bytes(b"\x00" * 1024)
+
+    effects = engine.get_effects_list()
+    # zombie/jumpscare template mag scare1.mp4 NIET kapen
+    zombie = next((e for e in effects if e["id"] == "missing_zombie"), None)
+    assert zombie["file_exists"] is False
+
+    # scare1 moet als dynamisch effect met naam 'Scare 1' ontdekt worden
+    scare_effect = next((e for e in effects if e["id"] == "scare1"), None)
+    assert scare_effect is not None
+    assert scare_effect["name"] == "Scare 1"
+    assert scare_effect["file_exists"] is True
+
+
+

@@ -21,8 +21,8 @@ class EffectEngine:
     """Beheert effectconfiguraties, mediabestanden en runtime-status."""
 
     def __init__(self, config_path: Path = CONFIG_FILE, media_dir: Path = MEDIA_DIR, cooldown_seconds: Optional[float] = None):
-        self.config_path = config_path
-        self.media_dir = media_dir
+        self.config_path = Path(config_path).resolve()
+        self.media_dir = Path(media_dir).resolve()
         self.cooldown_seconds = float(cooldown_seconds) if cooldown_seconds is not None else COOLDOWN_SECONDS
 
         self.background_config: Dict[str, Any] = {}
@@ -311,7 +311,7 @@ class EffectEngine:
         return True, f"Achtergrond gewijzigd naar '{clean_name}'", self.get_background()
 
     def _resolve_effect_file(self, item: Dict[str, Any]) -> Tuple[str, bool, Optional[str]]:
-        """Zoekt het mediabestand voor een effect, inclusief automatische trefwoord-matching."""
+        """Zoekt het mediabestand voor een geconfigureerd effect (strikt op bestandsnaam)."""
         file_path = item.get("file", "")
         exists, web_url = self._check_file_exists(file_path)
         if exists:
@@ -319,37 +319,23 @@ class EffectEngine:
 
         effects_dir = self.media_dir / "effects"
         if effects_dir.is_dir():
+            target_name = Path(file_path).name.lower()
             effect_id = item.get("id", "").lower()
-            keywords = [effect_id, effect_id.replace("_", " ")]
-            if effect_id == "ghost_attack": keywords.extend(["ghost", "spook", "geest"])
-            elif effect_id == "zombie": keywords.extend(["zombie", "undead"])
-            elif effect_id == "creepy_eyes": keywords.extend(["eyes", "ogen", "creepy"])
-            elif effect_id == "jumpscare": keywords.extend(["jump", "scare1", "jumpscare"])
-            elif effect_id == "window_scratcher": keywords.extend(["scratch", "kras", "claw", "klauw"])
 
-            candidates = [
-                f for f in sorted(effects_dir.iterdir())
-                if f.is_file() and f.suffix.lower() in ALLOWED_MEDIA_EXTENSIONS and f.stat().st_size > 0
-                and not f.name.endswith(".dwsupload")
-                and not f.name.endswith(".part")
-                and not f.name.endswith(".tmp")
-                and not f.stem.lower().startswith("achtergrond")
-                and not f.stem.lower().startswith("background")
-            ]
-            for candidate in candidates:
-                c_name = candidate.stem.lower()
-                if any(kw in c_name for kw in keywords):
-                    rel = f"media/effects/{candidate.name}"
-                    c_exists, c_url = self._check_file_exists(rel)
-                    if c_exists:
-                        return rel, True, c_url
-
-            # Als er slechts één effectbestand in media/effects/ staat en dit is jumpscare:
-            if effect_id == "jumpscare" and len(candidates) == 1:
-                rel = f"media/effects/{candidates[0].name}"
-                c_exists, c_url = self._check_file_exists(rel)
-                if c_exists:
-                    return rel, True, c_url
+            for candidate in sorted(effects_dir.iterdir()):
+                if (
+                    candidate.is_file()
+                    and candidate.suffix.lower() in ALLOWED_MEDIA_EXTENSIONS
+                    and candidate.stat().st_size > 0
+                    and not candidate.name.endswith((".dwsupload", ".part", ".tmp"))
+                    and not candidate.stem.lower().startswith(("achtergrond", "background"))
+                ):
+                    # Alleen exacte match op bestandsnaam of exacte effect-ID match
+                    if candidate.name.lower() == target_name or candidate.stem.lower() == effect_id:
+                        rel = f"media/effects/{candidate.name}"
+                        c_exists, c_url = self._check_file_exists(rel)
+                        if c_exists:
+                            return rel, True, c_url
 
         return file_path, False, None
 
@@ -404,7 +390,10 @@ class EffectEngine:
                 else:
                     icon = "pumpkin"
 
-                display_name = stem.replace("_", " ").replace("-", " ").title()
+                s = re.sub(r'([a-z])([A-Z])', r'\1 \2', stem)
+                s = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', s)
+                s = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', s)
+                display_name = s.replace("_", " ").replace("-", " ").strip().title()
                 duration = self._calculate_effect_duration(f, fallback=15.0)
                 raw_duration = self._get_media_duration(f)
                 dynamic_list.append({
@@ -642,7 +631,10 @@ class EffectEngine:
                     else:
                         icon = "🔊"
 
-                    display_name = stem.replace("_", " ").replace("-", " ").title()
+                    s = re.sub(r'([a-z])([A-Z])', r'\1 \2', stem)
+                    s = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', s)
+                    s = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', s)
+                    display_name = s.replace("_", " ").replace("-", " ").strip().title()
 
                     results.append({
                         "id": sound_id,
