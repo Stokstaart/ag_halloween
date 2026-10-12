@@ -30,8 +30,12 @@ Een zelfstandige, robuuste en sfeervolle webapplicatie om tijdens Halloween draa
 - **📱 Flexibele Grid-indeling (3 of 4 Kolommen)**:
   - Schakel bovenaan het paneel direct tussen een 3-koloms of 4-koloms raster voor effectknoppen, zodat je op elk smartphonescherm alle knoppen overzichtelijk bij de hand hebt. De voorkeur wordt onthouden in `localStorage`.
 - **🔍 Volledig Dynamische Mediabestandsdetectie**:
-  - Plaats simpelweg een nieuw videobestand (`.mp4`, `.webm`) in `media/effects/` of `media/background/`, of een audiobestand (`.mp3`, `.wav`) in `media/effects/music/`.
+  - Plaats simpelweg een nieuw videobestand (`.mp4`, `.webm`) in `media/effects/` of `media/background/`, of een audiobestand (`.mp3`, `.wav`) in `media/audio/`.
   - Bestanden worden direct automatisch herkend en voorzien van een passende naam en Halloween-icoon, zonder handmatige configuratie van JSON-bestanden!
+- **⚡ Ingebouwde Video-Optimalisatie (FastStart & H.264)**:
+  - Scant alle MP4-bestanden automatisch en verplaatst de `moov` atom vooraan voor buffervrij en vertragingsvrij starten op de beamer.
+- **⏱️ Automatische Spookmodus (Autopilot Scheduler)**:
+  - Configureerbare server-side timer (1-6 min) die willekeurige scares en geluiden afvuurt, ook als je telefoon vergrendeld is.
 - **🛑 Betrouwbare Noodstop & Herverbinding**:
   - Directe noodstopknop (`Return to Background`) met dubbele WebSocket + HTTP REST fallback (`POST /api/stop`), die zowel actieve video's als spelende geluidseffecten per direct afbreekt.
   - Automatische WebSocket liveness-watchdog en wake-lock herstel bij ontwaken van je smartphone.
@@ -49,11 +53,14 @@ Een zelfstandige, robuuste en sfeervolle webapplicatie om tijdens Halloween draa
 │   ├── config.py           # Omgevingsvariabelen, padvalidatie en defaults
 │   ├── effect_engine.py    # Effectengine, MP4 metadataparser, dynamische schijfscan & volume
 │   ├── ws_manager.py       # WebSocket connection manager voor beamer en controllers
+│   ├── scheduler.py        # Server-side autopilot scheduler voor willekeurige scares
+│   ├── media_optimizer.py  # FastStart atom fixer en H.264 video converter
 │   ├── main.py             # FastAPI app, REST routes en realtime WebSocket communicatie
 │   ├── templates/
 │   │   ├── index.html      # Startpagina en statusdashboard
+│   │   ├── login.html      # Halloween inlogscherm (30-dagen sessie)
 │   │   ├── screen.html     # Projectiescherm voor beamer (dual-video + audio pool)
-│   │   └── control.html    # Mobiele controller (grid, sliders, achtergrondkeuze)
+│   │   └── control.html    # Mobiele controller (grid, sliders, autopilot, optimizer)
 │   └── static/
 │       ├── css/            # Vormgeving (screen.css & control.css)
 │       └── js/             # Client logica (screen.js & control.js)
@@ -61,10 +68,10 @@ Een zelfstandige, robuuste en sfeervolle webapplicatie om tijdens Halloween draa
 │   └── effects.json        # Basisconfiguratie en eventuele statische overrides
 ├── media/                  # Persistente opslag voor mediabestanden
 │   ├── background/         # Achtergrondvideo's (bijv. Halloween Window Projection 2024.mp4)
-│   ├── effects/            # Jumpscare en schrikvideo's (scare1.mp4, window_scratcher.mp4, etc.)
-│   └── effects/music/      # Geluidseffecten (losse .mp3 bestanden zoals wolf howl, screams)
-├── tests/                  # Geautomatiseerde testsuite (pytest, 34 tests)
-├── Dockerfile              # Container image (Python 3.12-slim, non-root appuser)
+│   ├── effects/            # Jumpscare en schrikvideo's (GrimReaper.mp4, scare1.mp4, etc.)
+│   └── audio/              # Geluidseffecten (losse .mp3 bestanden zoals wolf howl, screams)
+├── tests/                  # Geautomatiseerde testsuite (pytest, 41 tests)
+├── Dockerfile              # Container image (Python 3.12-slim, ffmpeg, UID 1000 appuser)
 ├── compose.yaml            # Docker Compose stack met volume mounts
 ├── .env.example            # Voorbeeldconfiguratie
 └── requirements.txt        # Python dependencies
@@ -161,8 +168,8 @@ Plaats je eigen bestanden in de bijbehorende mappen (hot-reload, geen herstart n
 - **Jumpscares & Scares (`media/effects/`):**
   - Bijv. `scare1.mp4`, `scare4.mp4`, `window_scratcher.mp4`.
   - Worden automatisch herkend en getoond als effectknoppen.
-- **Geluidseffecten (`media/effects/music/` of `media/audio/`):**
-  - Bijv. `Wolf howl.mp3`, `SCREAM - Horror sound.mp3`, `thunder.mp3`.
+- **Geluidseffecten (`media/audio/`):**
+  - Bijv. `Wolf howl.mp3`, `Sirens.mp3`, `ghost-whispering.mp3`.
   - Verschijnen automatisch als geluidseffectknoppen in de paarse sectie.
 
 ### Aanbevolen Codecs:

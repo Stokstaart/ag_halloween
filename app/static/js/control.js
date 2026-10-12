@@ -238,7 +238,7 @@
         soundsGrid.innerHTML = `
           <div class="no-sounds-hint" id="no-sounds-hint">
             <span>ℹ️ Geen MP3's gevonden.</span><br>
-            Plaats <code>.mp3</code> bestanden in <code>media/effects/music/</code> of <code>media/audio/</code>.
+            Plaats <code>.mp3</code> bestanden in <code>media/audio/</code>.
           </div>
         `;
       }

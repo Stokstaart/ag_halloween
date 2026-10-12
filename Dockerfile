@@ -26,7 +26,7 @@ COPY config /app/config
 COPY media /app/media
 
 # Maprechten instellen voor persistente opslag
-RUN mkdir -p /app/media/background /app/media/effects /app/media/effects/music /app/media/music /app/media/audio /app/config && \
+RUN mkdir -p /app/media/background /app/media/effects /app/media/audio /app/config && \
     chown -R appuser:appuser /app
 
 # Schakel over naar niet-root gebruiker
