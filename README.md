@@ -8,6 +8,8 @@ A standalone, robust, and atmospheric web application for wireless, real-time co
   <img src="screenshots/startpage.png" width="45%" alt="Halloween Hub Landing Page" />
   &nbsp;
   <img src="screenshots/mission-control.png" width="33%" alt="Mobile Haunted House Mission Control" />
+  <br><br>
+  <a href="screenshots/sample.mp4">🎬 <strong>Watch the Demo Recording in Action (sample.mp4)</strong></a>
 </p>
 
 ---
