@@ -2,6 +2,8 @@
 
 Een zelfstandige, robuuste en sfeervolle webapplicatie om tijdens Halloween draadloos en realtime raamprojecties, jumpscares en overlappende geluidseffecten aan te sturen op een beamer of extern scherm via een mobiele smartphone-controller.
 
+> 🤖 **100% Vibe Coded**: Dit volledige project is van de eerste tot de laatste regel gebouwd met behulp van AI (*"vibe coding"*). *No prior coding knowledge was used for this setup* — puur interactief bouwen, prompten, testen en itereren.
+
 ---
 
 ## 🌟 Belangrijkste Eigenschappen
@@ -158,19 +160,28 @@ Open `http://<SERVER-IP>:8088/control` op je telefoon op hetzelfde netwerk.
 
 ---
 
-## 🎬 Mediabestanden Toevoegen
+## 🎬 Mediabestanden & Content Verzamelen
 
-Plaats je eigen bestanden in de bijbehorende mappen (hot-reload, geen herstart nodig):
+Omdat mediabestanden en animaties auteursrechtelijk beschermd zijn, bevat deze repository standaard geen videoclips. **Je brengt simpelweg je eigen bestanden mee!**
 
-- **Achtergronden (`media/background/`):**
-  - Bijv. `ambient_fog.mp4`, `Halloween Window Projection 2024.mp4`, `Achtergrond1.mp4`.
-  - Video's loopen automatisch en zijn direct selecteerbaar in het dropdown-menu.
-- **Jumpscares & Scares (`media/effects/`):**
-  - Bijv. `scare1.mp4`, `scare4.mp4`, `window_scratcher.mp4`.
-  - Worden automatisch herkend en getoond als effectknoppen.
-- **Geluidseffecten (`media/audio/`):**
-  - Bijv. `Wolf howl.mp3`, `Sirens.mp3`, `ghost-whispering.mp3`.
-  - Verschijnen automatisch als geluidseffectknoppen in de paarse sectie.
+### Waar haal je geschikte beelden en geluiden vandaan?
+1. **Video's (Achtergronden & Jumpscares)**:
+   - Zoek op YouTube naar bijvoorbeeld: `"Halloween window projection loop"`, `"Halloween spooky fog background"`, of `"ghost projection green screen"`.
+   - Download ze eenvoudig via de commandline met [`yt-dlp`](https://github.com/yt-dlp/yt-dlp):
+     ```bash
+     # Download video als MP4 rechtstreeks naar de effectenmap
+     yt-dlp -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" "https://www.youtube.com/watch?v=VOORBEELD" -o "media/effects/mijn_scare.mp4"
+     ```
+2. **Geluidseffecten (.mp3)**:
+   - Gratis en rechtenvrije audio is te vinden op [Freesound.org](https://freesound.org/) of [Pixabay Sound Effects](https://pixabay.com/sound-effects/) (zoek op *"scream"*, *"wolf howl"*, *"evil laugh"*, *"thunder"*, *"chains"*).
+
+### Slepen en klaar (Zero Configuration!):
+Plaats je bestanden simpelweg in de mappen:
+- `media/background/`: Continue achtergrondloops (bijv. donker bos, mist).
+- `media/effects/`: Jumpscare- en schrikvideo's (bijv. `scare1.mp4`, `zombie.mp4`).
+- `media/audio/`: Losse geluidseffecten (bijv. `wolf_howl.mp3`, `scream.mp3`).
+
+Het bedieningspaneel **detecteert nieuwe bestanden automatisch** (hot-reload, geen herstart nodig), maakt er automatisch knoppen van met passende Halloween-iconen en berekent de exacte speelduur. Je hoeft **nooit** een configuratiebestand of JSON aan te passen!
 
 ### Aanbevolen Codecs:
 - **Video:** H.264 (AVC) met AAC audio en FastStart (`+faststart` moov atom).
@@ -179,13 +190,32 @@ Plaats je eigen bestanden in de bijbehorende mappen (hot-reload, geen herstart n
 
 ---
 
+## 🌐 Reverse Proxy & Buitenshuis Bedienen
+
+Wil je tijdens Halloween vanaf de straat of oprit op je smartphone (via 4G/5G) de beamer binnen aansturen via een eigen domeinnaam (bijv. `https://halloween.jouwdomein.nl`)? Dat kan eenvoudig via een reverse proxy (zoals Synology Reverse Proxy, Nginx, Caddy of Traefik):
+
+### Belangrijk: WebSockets Aanzetten
+De communicatie tussen je mobiele telefoon en het beamer-scherm verloopt in realtime via **WebSockets** (`/ws`).
+Zorg dat je reverse proxy WebSocket upgrades doorlaat:
+- **Synology Reverse Proxy**: Bewerk de proxy-regel → ga naar *Aangepaste header* → *Maken* → *WebSocket* (dit stelt automatisch `Upgrade` en `Connection` in).
+- **Nginx**:
+  ```nginx
+  proxy_pass http://localhost:8088;
+  proxy_http_version 1.1;
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection "upgrade";
+  ```
+- **Wachtwoord instellen**: Stel in `.env` een wachtwoord in (`PASSWORD=jouwWachtwoord` of `AUTH_TOKEN=jouwWachtwoord`). Je krijgt dan bij het openen van de controller een net inlogscherm te zien dat je 30 dagen ingelogd houdt.
+
+---
+
 ## 🔒 Beveiliging
 
 1. **Lokaal Netwerk (Standaard):**
    - Met lege `AUTH_TOKEN` is het systeem direct bruikbaar op je thuisnetwerk. De controller toont een subtiele `⚠️ LAN Open` badge.
-2. **Beveiligde Token Modus:**
-   - Vul in `.env` een token in: `AUTH_TOKEN=mijnGeheimeToken123`.
-   - Open de interfaces via `http://<SERVER-IP>:8088/control?token=mijnGeheimeToken123` en `http://<SERVER-IP>:8088/screen?token=mijnGeheimeToken123`.
+2. **Beveiligde Wachtwoord Modus:**
+   - Vul in `.env` een wachtwoord in: `PASSWORD=mijnGeheim`.
+   - Open de interface en log in; er wordt automatisch een 30-dagen sessie-cookie geplaatst.
 3. **Path Traversal Bescherming:**
    - De backend valideert alle bestandspaden strikt; ongeldige bestandspaden en `..` worden categorisch geblokkeerd.
 
@@ -199,14 +229,12 @@ De testsuite valideert de REST API, EffectEngine, audio playback, cooldown overr
 # Virtuele omgeving activeren
 source .venv/bin/activate
 
-# 34 tests uitvoeren
+# 42 tests uitvoeren
 pytest -v
 ```
 
 ---
 
-## 📄 Portainer Stack Template
+## 📄 Licentie
 
-1. Ga in Portainer naar **Stacks** → **Add stack**.
-2. Plak de inhoud van `compose.yaml`.
-3. Klik op **Deploy the stack**.
+Dit project is vrijgegeven onder de [MIT Licentie](LICENSE). Iedereen is vrij om deze software te gebruiken, aan te passen en te delen.
