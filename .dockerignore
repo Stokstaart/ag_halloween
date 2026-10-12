@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env
+.pytest_cache
+__pycache__
+*.py[cod]
+*$py.class
+venv/
+.venv/
+tests/
+*.log
+media/*
+!media/background/.gitkeep
+!media/effects/.gitkeep
+!media/audio/.gitkeep
