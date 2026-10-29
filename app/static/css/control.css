@@ -461,6 +461,8 @@ h1 {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.65rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .sound-hint {
@@ -469,10 +471,22 @@ h1 {
   font-weight: 500;
 }
 
+/* Sounds Grid (3 / 4 Kolommen) */
 .sounds-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.55rem;
+  transition: all 0.2s ease;
+}
+
+.sounds-grid.cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.55rem;
+}
+
+.sounds-grid.cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.42rem;
 }
 
 .btn-sound {
@@ -528,6 +542,21 @@ h1 {
   line-height: 1.2;
   word-break: break-word;
   max-width: 100%;
+}
+
+/* 4 kolommen compacte styling voor sounds */
+.sounds-grid.cols-4 .btn-sound {
+  padding: 0.55rem 0.25rem;
+  min-height: 56px;
+  gap: 0.2rem;
+}
+
+.sounds-grid.cols-4 .btn-sound .sound-icon {
+  font-size: 1.2rem;
+}
+
+.sounds-grid.cols-4 .btn-sound .sound-name {
+  font-size: 0.72rem;
 }
 
 .no-sounds-hint {

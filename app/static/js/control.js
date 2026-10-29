@@ -895,9 +895,11 @@
     });
   }
 
-  // Kolommen layout schakelaar (3 of 4 kolommen)
+  // Kolommen layout schakelaar (3 of 4 kolommen) voor Video Effecten & Geluidseffecten
   const btnCol3 = document.getElementById('btn-col-3');
   const btnCol4 = document.getElementById('btn-col-4');
+  const btnSoundCol3 = document.getElementById('btn-sound-col-3');
+  const btnSoundCol4 = document.getElementById('btn-sound-col-4');
 
   function setGridColumns(cols) {
     const grid = effectsGrid || document.getElementById('effects-grid');
@@ -917,23 +919,65 @@
     }
   }
 
+  function setSoundGridColumns(cols) {
+    const sGrid = soundsGrid || document.getElementById('sounds-grid');
+    if (!sGrid) return;
+    if (cols === 4) {
+      sGrid.classList.add('cols-4');
+      sGrid.classList.remove('cols-3');
+      if (btnSoundCol4) btnSoundCol4.classList.add('active');
+      if (btnSoundCol3) btnSoundCol3.classList.remove('active');
+      try { localStorage.setItem('halloween_sound_grid_cols', '4'); } catch (e) {}
+    } else {
+      sGrid.classList.add('cols-3');
+      sGrid.classList.remove('cols-4');
+      if (btnSoundCol3) btnSoundCol3.classList.add('active');
+      if (btnSoundCol4) btnSoundCol4.classList.remove('active');
+      try { localStorage.setItem('halloween_sound_grid_cols', '3'); } catch (e) {}
+    }
+  }
+
   if (btnCol3) {
     btnCol3.addEventListener('click', () => {
       vibrate(20);
       setGridColumns(3);
+      if (!localStorage.getItem('halloween_sound_grid_cols')) {
+        setSoundGridColumns(3);
+      }
     });
   }
   if (btnCol4) {
     btnCol4.addEventListener('click', () => {
       vibrate(20);
       setGridColumns(4);
+      if (!localStorage.getItem('halloween_sound_grid_cols')) {
+        setSoundGridColumns(4);
+      }
     });
   }
 
-  // Laad opgeslagen kolomvoorkeur (standaard 3 kolommen)
+  if (btnSoundCol3) {
+    btnSoundCol3.addEventListener('click', () => {
+      vibrate(20);
+      setSoundGridColumns(3);
+    });
+  }
+  if (btnSoundCol4) {
+    btnSoundCol4.addEventListener('click', () => {
+      vibrate(20);
+      setSoundGridColumns(4);
+    });
+  }
+
+  // Laad opgeslagen kolomvoorkeuren (standaard 3 kolommen)
   try {
     const savedCols = parseInt(localStorage.getItem('halloween_grid_cols') || '3', 10);
     setGridColumns(savedCols === 4 ? 4 : 3);
+  } catch (e) {}
+
+  try {
+    const savedSoundCols = parseInt(localStorage.getItem('halloween_sound_grid_cols') || localStorage.getItem('halloween_grid_cols') || '3', 10);
+    setSoundGridColumns(savedSoundCols === 4 ? 4 : 3);
   } catch (e) {}
 
   function syncServerStatus() {
