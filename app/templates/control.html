@@ -240,12 +240,12 @@
       </div>
     </div>
 
-    <!-- ⚡ Video Optimalisatie Card -->
+    <!-- ⚡ Media Optimalisatie Card -->
     <div class="controls-card optimizer-card">
       <div class="card-header-with-badge">
         <div>
-          <div class="controls-card-title" style="margin-bottom: 0.2rem;">⚡ Video Optimalisatie (FastStart)</div>
-          <div class="card-subtitle">Repareert buffering &amp; codecs voor naadloze overgangen</div>
+          <div class="controls-card-title" style="margin-bottom: 0.2rem;">⚡ Media Optimalisatie (FastStart &amp; Audio)</div>
+          <div class="card-subtitle">Repareert video buffering en balanceert volumeniveaus (EBU R128) van effecten</div>
         </div>
         <span id="opt-health-badge" class="opt-badge {% if media_health and media_health.needs_optimization > 0 %}badge-warn{% else %}badge-ok{% endif %}">
           {% if media_health and media_health.needs_optimization > 0 %}
@@ -259,7 +259,7 @@
       <div class="optimizer-actions">
         <button id="btn-optimize-media" class="btn-optimize" type="button" {% if media_health and media_health.is_optimizing %}disabled{% endif %}>
           <span id="btn-opt-icon">⚡</span>
-          <span id="btn-opt-text">Optimaliseer Video's Nu</span>
+          <span id="btn-opt-text">Optimaliseer Media Nu</span>
         </button>
       </div>
 

@@ -569,7 +569,7 @@
         if (btnOptIcon) btnOptIcon.textContent = '⏳';
       } else {
         btnOptimizeMedia.disabled = false;
-        if (btnOptText) btnOptText.textContent = 'Optimaliseer Video\'s Nu';
+        if (btnOptText) btnOptText.textContent = 'Optimaliseer Media Nu';
         if (btnOptIcon) btnOptIcon.textContent = '⚡';
       }
     }
@@ -586,17 +586,17 @@
       optProgressLabel.textContent = `${status.current_file || ''}: ${status.step || 'Verwerken...'}`;
     }
     if (optProgressBarFill) {
-      const pct = status.total > 0 ? Math.round((status.current_index / status.total) * 100) : 50;
+      const pct = status.total > 0 ? Math.round((status.processed / status.total) * 100) : 50;
       optProgressBarFill.style.width = `${pct}%`;
     }
   }
 
   function handleOptimizeDone(result, health) {
     if (btnOptimizeMedia) btnOptimizeMedia.disabled = false;
-    if (btnOptText) btnOptText.textContent = 'Optimaliseer Video\'s Nu';
+    if (btnOptText) btnOptText.textContent = 'Optimaliseer Media Nu';
     if (btnOptIcon) btnOptIcon.textContent = '⚡';
 
-    if (optProgressLabel) optProgressLabel.textContent = 'Voltooid! Alle video\'s zijn nu gerepareerd.';
+    if (optProgressLabel) optProgressLabel.textContent = 'Voltooid! Alle media is nu geoptimaliseerd.';
     if (optProgressBarFill) optProgressBarFill.style.width = '100%';
 
     setTimeout(() => {
@@ -604,7 +604,7 @@
     }, 4000);
 
     if (health) setMediaHealthUI(health);
-    showToast('⚡ Video optimalisatie voltooid! Wisselen gaat nu vloeiend.');
+    showToast('⚡ Media optimalisatie voltooid! Video\'s starten vloeiend en audio is gebalanceerd.');
   }
 
   // WS commando verzenden met directe HTTP fallback
