@@ -496,8 +496,12 @@ async def api_set_background(payload: BackgroundRequest, authenticated: bool = D
 
 @app.post("/api/trigger")
 async def api_trigger(payload: TriggerRequest, authenticated: bool = Depends(verify_token)):
-    """Triggert een effect via REST."""
-    success, reason, effect_payload = engine.trigger_effect(payload.effect_id, force=bool(payload.force))
+    """Triggert een effect via REST (ondersteunt ook effect_id='random')."""
+    if payload.effect_id.strip().lower() == "random":
+        success, reason, effect_payload = engine.trigger_random(force=bool(payload.force))
+    else:
+        success, reason, effect_payload = engine.trigger_effect(payload.effect_id, force=bool(payload.force))
+
     if not success:
         raise HTTPException(status_code=400, detail=reason)
 
@@ -527,7 +531,10 @@ async def api_stop(authenticated: bool = Depends(verify_token)):
     """Stopt direct het actieve effect en keert terug naar de achtergrond."""
     global active_watchdog_task
     if active_watchdog_task and not active_watchdog_task.done():
-        active_watchdog_task.cancel()
+        try:
+            active_watchdog_task.cancel()
+        except Exception:
+            pass
 
     result = engine.stop_effect()
     await manager.broadcast_to_screens({"type": "stop_effect"})
@@ -540,7 +547,10 @@ async def api_effect_ended(request: Request, authenticated: bool = Depends(verif
     """Meldt voltooiing van effect via HTTP fallback vanaf het beamer scherm."""
     global active_watchdog_task
     if active_watchdog_task and not active_watchdog_task.done():
-        active_watchdog_task.cancel()
+        try:
+            active_watchdog_task.cancel()
+        except Exception:
+            pass
 
     finished_id = engine.active_effect_id
     try:

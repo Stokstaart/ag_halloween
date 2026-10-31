@@ -60,6 +60,19 @@ async def test_api_trigger_unconfigured_effect():
 
 
 @pytest.mark.asyncio
+async def test_api_trigger_random():
+    """Test dat effect_id='random' een willekeurig geldig effect triggert."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post("/api/trigger", json={"effect_id": "random", "force": True})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert "effect" in data
+        assert data["effect"]["effect_id"] is not None
+
+
+
+@pytest.mark.asyncio
 async def test_api_stop():
     """Test /api/stop endpoint."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
