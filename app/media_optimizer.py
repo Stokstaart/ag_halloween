@@ -99,9 +99,12 @@ class MediaOptimizer:
         self.processed_count = 0
         self.total_count = 0
         self.last_status: Dict[str, Any] = {}
+        # Mtime-gebaseerde cache zodat page loads instant (<10ms) zijn
+        self._audio_cache: Dict[str, Tuple[float, Optional[float], Optional[float]]] = {}
+        self._video_cache: Dict[str, Tuple[float, Optional[str], Optional[str], bool]] = {}
 
     def get_health_report(self) -> Dict[str, Any]:
-        """Scant alle video- en audiobestanden en geeft een statusrapport terug."""
+        """Scant alle video- en audiobestanden en geeft een statusrapport terug (met caching)."""
         background_dir = self.media_dir / "background"
         effects_dir = self.media_dir / "effects"
         audio_dir = self.media_dir / "audio"
@@ -134,10 +137,16 @@ class MediaOptimizer:
         report_files = []
         needs_optimization_count = 0
 
-        # Video inspectie
+        # Video inspectie met caching
         for f in video_files:
-            faststart = is_faststart_mp4(f) if f.suffix.lower() == ".mp4" else False
-            vcodec, acodec = inspect_video_stream(f)
+            mtime = f.stat().st_mtime
+            cached = self._video_cache.get(str(f))
+            if cached and cached[0] == mtime:
+                _, vcodec, acodec, faststart = cached
+            else:
+                faststart = is_faststart_mp4(f) if f.suffix.lower() == ".mp4" else False
+                vcodec, acodec = inspect_video_stream(f)
+                self._video_cache[str(f)] = (mtime, vcodec, acodec, faststart)
 
             is_h264 = vcodec == "h264" if vcodec else True
             needs_transcode = bool(vcodec and vcodec not in ("h264",))
@@ -159,13 +168,18 @@ class MediaOptimizer:
                 "is_optimal": is_optimal,
             })
 
-        # Audio inspectie
+        # Audio inspectie met caching
         for f in audio_files:
-            lufs, tp = measure_audio_loudness(f)
+            mtime = f.stat().st_mtime
+            cached = self._audio_cache.get(str(f))
+            if cached and cached[0] == mtime:
+                _, lufs, tp = cached
+            else:
+                lufs, tp = measure_audio_loudness(f)
+                self._audio_cache[str(f)] = (mtime, lufs, tp)
+
             # Een audiobestand is optimaal als het binnen de broadcast-bandbreedte [-24.0, -13.0] LUFS valt
             # én geen digitale clipping vertoont (true peak <= -1.0 dBFS).
-            # Dit voorkomt onnodige her-encodering van reeds genormaliseerde korte percussieve effecten
-            # (zoals klopgeluiden) met hoge pieken en dynamiek.
             is_optimal = False
             if lufs is not None and tp is not None:
                 if -24.0 <= lufs <= -13.0 and tp <= -1.0:
